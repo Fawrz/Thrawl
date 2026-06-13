@@ -4,7 +4,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-$HOME/Android/Sdk/ndk/26.1.10909125}}"
+NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-$HOME/Android/Sdk/ndk/28.2.13676358}}"
 [ -d "$NDK_HOME" ] || { echo "ANDROID_NDK_HOME not set and default not found"; exit 1; }
 
 command -v cargo-ndk >/dev/null || { echo "cargo-ndk not installed (cargo install cargo-ndk)"; exit 1; }
@@ -22,7 +22,7 @@ for i in "${!ABIS[@]}"; do
     echo "==> Building $ABI"
     cargo ndk \
         --target "$ABI" \
-        --android-platform 30 \
+        --platform 30 \
         --manifest-path Cargo.toml \
         build --release
     cp "target/$ABI/release/chimerad" "$OUT/system/bin/$STAGE/chimerad"

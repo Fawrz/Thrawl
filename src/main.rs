@@ -21,8 +21,8 @@ extern "C" fn handle_sigterm(_: libc::c_int) {
 #[cfg(unix)]
 fn install_signals() {
     unsafe {
-        libc::signal(libc::SIGHUP, handle_sighup as libc::sighandler_t);
-        libc::signal(libc::SIGTERM, handle_sigterm as libc::sighandler_t);
+        libc::signal(libc::SIGHUP, handle_sighup as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, handle_sigterm as *const () as libc::sighandler_t);
         libc::signal(libc::SIGPIPE, libc::SIG_IGN);
     }
 }

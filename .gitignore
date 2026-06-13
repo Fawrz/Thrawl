@@ -1,2 +1,4 @@
 /target
 /system/bin/*/chimerad
+/build-out/
+*.zip
