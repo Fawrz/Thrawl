@@ -38,11 +38,29 @@ Copy-Item customize.sh, post-fs-data.sh, service.sh, uninstall.sh, action.sh, mo
 New-Item -ItemType Directory -Path "$OUT\scripts" -Force | Out-Null
 Copy-Item scripts\*.sh $OUT\scripts\
 
-# Package using PowerShell Compress-Archive
+# Package using .NET ZipArchive with Unix forward-slash paths
 $ZIP_NAME = "chimera-v1.0.0.zip"
 $ZIP_PATH = Join-Path $OUT $ZIP_NAME
 Remove-Item $ZIP_PATH -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
-Compress-Archive -Path "$OUT\*" -DestinationPath $ZIP_PATH -CompressionLevel Optimal
+
+Add-Type -AssemblyName System.IO.Compression
+$zipStream = [System.IO.File]::Create($ZIP_PATH)
+$zip = [System.IO.Compression.ZipArchive]::new($zipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    $files = Get-ChildItem -Recurse -File $OUT | Where-Object { $_.FullName -ne $ZIP_PATH }
+    foreach ($f in $files) {
+        $rel = $f.FullName.Substring($OUT.Length + 1)
+        $rel = $rel.Replace('\', '/')
+        $entry = $zip.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
+        $entryWriter = $entry.Open()
+        $fileBytes = [System.IO.File]::ReadAllBytes($f.FullName)
+        $entryWriter.Write($fileBytes, 0, $fileBytes.Length)
+        $entryWriter.Dispose()
+    }
+} finally {
+    $zip.Dispose()
+    $zipStream.Dispose()
+}
 
 Write-Host "Built: $ZIP_PATH"

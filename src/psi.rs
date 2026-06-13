@@ -1,9 +1,7 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
 use std::time::Duration;
-
-#[cfg(unix)]
-use std::os::unix::io::AsRawFd;
 
 pub const PSI_MEMORY: &str = "/proc/pressure/memory";
 
