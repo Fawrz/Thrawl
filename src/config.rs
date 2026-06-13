@@ -117,16 +117,16 @@ fn parse_line<'a>(line: &'a str) -> Option<(&'a str, &'a str)> {
 fn parse_value(key: &ConfigKey, value_str: &str) -> ConfigValue {
     match key.kind {
         ValueKind::Bool => match value_str.to_lowercase().as_str() {
-            "true" | "1" | "yes" => ConfigValue::Bool(true),
-            "false" | "0" | "no" => ConfigValue::Bool(false),
+            "1" => ConfigValue::Bool(true),
+            "0" => ConfigValue::Bool(false),
             _ => {
                 eprintln!("WARN: invalid bool value '{}' for '{}', using default", value_str, key.name);
                 key.default.clone()
             }
         },
         ValueKind::Auto => match value_str.to_lowercase().as_str() {
-            "auto" | "true" | "1" => ConfigValue::AutoResolved(true),
-            "false" | "0" | "no" => ConfigValue::AutoResolved(false),
+            "auto" | "1" => ConfigValue::AutoResolved(true),
+            "0" => ConfigValue::AutoResolved(false),
             _ => {
                 eprintln!("WARN: invalid auto value '{}' for '{}', using default", value_str, key.name);
                 key.default.clone()
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn bool_invalid_falls_back_to_default() {
-        let s = "ZRAM_ENABLE=yes\n";
+        let s = "ZRAM_ENABLE=invalid\n";
         let m = parse(s);
         assert_eq!(m.get("ZRAM_ENABLE"), Some(&ConfigValue::Bool(true)));
     }
