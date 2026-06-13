@@ -145,8 +145,8 @@ fn parse_value(key: &ConfigKey, value_str: &str) -> ConfigValue {
 
 fn format_config_value(val: &ConfigValue) -> String {
     match val {
-        ConfigValue::Bool(b) => (if *b { "true" } else { "false" }).to_string(),
-        ConfigValue::AutoResolved(b) => (if *b { "true" } else { "false" }).to_string(),
+        ConfigValue::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
+        ConfigValue::AutoResolved(b) => (if *b { "1" } else { "0" }).to_string(),
         ConfigValue::Int(i) => i.to_string(),
         ConfigValue::String(s) => s.clone(),
     }
@@ -180,6 +180,7 @@ pub fn write_effective(path: &Path, map: &HashMap<String, ConfigValue>) -> std::
         }
     }
     std::fs::write(&tmp_path, &content)?;
+    // Windows: rename fails if destination exists, so remove it first
     let _ = std::fs::remove_file(path);
     std::fs::rename(&tmp_path, path)?;
     Ok(())
