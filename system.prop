@@ -1,0 +1,3 @@
+# Default LMKD properties (overridden at runtime by lmkd.sh).
+ro.lmk.use_psi=1
+ro.lmk.use_minfree_levels=0

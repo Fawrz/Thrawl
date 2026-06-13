@@ -1,0 +1,6 @@
+id=chimera
+name=Chimera
+version=v1.0.0
+versionCode=100
+author=Fawrz
+description=Adaptive LMKD/swappiness/ZRAM/swap optimizer (Rust daemon)
