@@ -8,3 +8,4 @@ pub mod vm_controller;
 pub mod lmkd;
 pub mod uffd;
 pub mod logging;
+pub mod command;
