@@ -1,5 +1,4 @@
 use std::io::{Read, Write};
-use std::path::Path;
 
 pub const SWAPPINESS_PATH: &str = "/proc/sys/vm/swappiness";
 
@@ -45,7 +44,7 @@ mod tests {
 
     #[test]
     fn detect_max_handles_sandbox() {
-        if Path::new(SWAPPINESS_PATH).exists() {
+        if std::path::Path::new(SWAPPINESS_PATH).exists() {
             let m = detect_max();
             assert!(m >= 0 && m <= 200);
         }

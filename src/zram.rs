@@ -1,4 +1,3 @@
-use std::fs;
 use std::io;
 
 pub fn sys_root() -> &'static str {
@@ -9,7 +8,7 @@ pub fn sys_root() -> &'static str {
 pub fn list_devices() -> Vec<String> {
     let root = std::path::Path::new(sys_root());
     let mut devices = Vec::new();
-    if let Ok(entries) = fs::read_dir(root) {
+    if let Ok(entries) = std::fs::read_dir(root) {
         for entry in entries.flatten() {
             if let Ok(name) = entry.file_name().into_string() {
                 if name.starts_with("zram") {
@@ -26,13 +25,9 @@ pub fn list_devices() -> Vec<String> {
     Vec::new()
 }
 
-fn zram_path(idx: u32) -> String {
-    format!("{}/zram{}", sys_root(), idx)
-}
-
 #[cfg(target_os = "linux")]
 pub fn hot_add() -> io::Result<()> {
-    fs::write("/sys/class/zram-control/hot_add", b"1")?;
+    std::fs::write("/sys/class/zram-control/hot_add", b"1")?;
     Ok(())
 }
 
@@ -43,7 +38,7 @@ pub fn hot_add() -> io::Result<()> {
 
 #[cfg(target_os = "linux")]
 pub fn hot_remove(idx: u32) -> io::Result<()> {
-    fs::write("/sys/class/zram-control/hot_remove", idx.to_string())?;
+    std::fs::write("/sys/class/zram-control/hot_remove", idx.to_string())?;
     Ok(())
 }
 
@@ -55,7 +50,7 @@ pub fn hot_remove(_idx: u32) -> io::Result<()> {
 #[cfg(target_os = "linux")]
 pub fn set_disksize(idx: u32, bytes: u64) -> io::Result<()> {
     let path = format!("{}/disksize", zram_path(idx));
-    fs::write(&path, bytes.to_string())?;
+    std::fs::write(&path, bytes.to_string())?;
     Ok(())
 }
 
@@ -67,11 +62,11 @@ pub fn set_disksize(_idx: u32, _bytes: u64) -> io::Result<()> {
 #[cfg(target_os = "linux")]
 pub fn set_comp_algo(idx: u32, algo: &str) -> io::Result<()> {
     let recomp_path = format!("{}/recomp_algorithm", zram_path(idx));
-    let content = fs::read_to_string(&recomp_path)?;
+    let content = std::fs::read_to_string(&recomp_path)?;
     let first = content.split_whitespace().next().unwrap_or("");
     if first != algo {
         let comp_path = format!("{}/comp_algorithm", zram_path(idx));
-        fs::write(&comp_path, algo)?;
+        std::fs::write(&comp_path, algo)?;
     }
     Ok(())
 }
@@ -84,7 +79,7 @@ pub fn set_comp_algo(_idx: u32, _algo: &str) -> io::Result<()> {
 #[cfg(target_os = "linux")]
 pub fn reset(idx: u32) -> io::Result<()> {
     let path = format!("{}/reset", zram_path(idx));
-    fs::write(&path, b"1")?;
+    std::fs::write(&path, b"1")?;
     Ok(())
 }
 
