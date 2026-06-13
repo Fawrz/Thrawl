@@ -16,7 +16,7 @@ pub fn write_swappiness(v: i64) -> std::io::Result<()> {
 
 pub fn detect_max() -> i64 {
     let prev = read_swappiness().ok();
-    let candidates = [200, 200, 150, 120, 100, 60, 10, 0];
+    let candidates = [200, 180, 150, 120, 100, 60, 10, 0];
     let mut max = 0;
     for &c in &candidates {
         if write_swappiness(c).is_err() { continue; }
