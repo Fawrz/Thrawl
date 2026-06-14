@@ -40,7 +40,12 @@ chmod +x "$OUT/customize.sh" "$OUT/post-fs-data.sh" "$OUT/service.sh" "$OUT/unin
 # Release version from git metadata.
 SHA=$(git rev-parse --short HEAD)
 BUILD=$(git rev-list --count HEAD)
-PACKAGE_VERSION="v${BASE_VERSION}-${BUILD}-${SHA}"
+TAG=$(git describe --tags --exact-match HEAD 2>/dev/null)
+if [ -n "$TAG" ]; then
+    PACKAGE_VERSION="$TAG"
+else
+    PACKAGE_VERSION="v${BASE_VERSION}-${BUILD}-${SHA}"
+fi
 ZIP_NAME="thrawl-${PACKAGE_VERSION}-release.zip"
 
 cat > "$OUT/module.prop" <<EOF

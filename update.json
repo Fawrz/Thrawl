@@ -1,6 +1,6 @@
 {
-    "version": "v1.0.1-24-32340c1",
-    "versionCode": 24,
-    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/v1.0.1-24-32340c1/thrawl-v1.0.1-24-32340c1-release.zip",
-    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/v1.0.1-24-32340c1"
+    "version": "v1.0.1",
+    "versionCode": 25,
+    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/v1.0.1/thrawl-v1.0.1-release.zip",
+    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/v1.0.1"
 }

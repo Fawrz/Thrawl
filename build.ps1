@@ -63,7 +63,12 @@ Copy-Item scripts\*.sh $OUT\scripts\
 # Release version from git metadata.
 $SHA = (git rev-parse --short HEAD).Trim()
 $BUILD = (git rev-list --count HEAD).Trim()
-$PACKAGE_VERSION = "v$BASE_VERSION-$BUILD-$SHA"
+$TAG = & { git describe --tags --exact-match HEAD } 2>$null
+if ($TAG) {
+    $PACKAGE_VERSION = $TAG.Trim()
+} else {
+    $PACKAGE_VERSION = "v$BASE_VERSION-$BUILD-$SHA"
+}
 $ZIP_NAME = "thrawl-$PACKAGE_VERSION-release.zip"
 
 Write-Utf8NoBom (Join-Path $OUT "module.prop") @"
