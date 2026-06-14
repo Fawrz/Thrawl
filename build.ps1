@@ -3,6 +3,16 @@
 
 $ErrorActionPreference = "Stop"
 
+function Write-Utf8NoBom {
+    param(
+        [string]$Path,
+        [string]$Content
+    )
+
+    $utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($Path, ($Content -replace "`r`n", "`n"), $utf8)
+}
+
 $NDK_HOME = $env:ANDROID_NDK_HOME, $env:ANDROID_NDK_ROOT, "$env:LOCALAPPDATA\Android\Sdk\ndk\28.2.13676358" | Where-Object { $_ } | Select-Object -First 1
 
 if (-not (Test-Path $NDK_HOME)) {
@@ -15,6 +25,10 @@ $msvc = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools
 $sdk = "C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0"
 $env:LIB = "$msvc\lib\x64;$sdk\ucrt\x64;$sdk\um\x64"
 $env:INCLUDE = "$msvc\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared"
+
+$BASE_VERSION_LINE = Get-Content "module.prop" | Where-Object { $_ -match '^version=v' } | Select-Object -First 1
+$BASE_VERSION = ($BASE_VERSION_LINE -replace '^version=v', '').Trim()
+if (-not $BASE_VERSION) { throw "Unable to determine base version from module.prop" }
 
 $OUT = Join-Path (Get-Location) "build-out"
 if (Test-Path $OUT) { Remove-Item -Recurse -Force $OUT }
@@ -35,15 +49,34 @@ foreach ($abi in $ABIS) {
 }
 
 # Stage all scripts / props
-Copy-Item customize.sh, post-fs-data.sh, service.sh, uninstall.sh, action.sh, module.prop, system.prop, config.conf $OUT\
+Copy-Item customize.sh, post-fs-data.sh, service.sh, uninstall.sh, action.sh, system.prop, config.conf $OUT\
 New-Item -ItemType Directory -Path "$OUT\scripts" -Force | Out-Null
 Copy-Item scripts\*.sh $OUT\scripts\
 
-# Dynamic version from git
+# Release version from git metadata.
 $SHA = (git rev-parse --short HEAD).Trim()
 $BUILD = (git rev-list --count HEAD).Trim()
-$VERSION = "v1.0.0-$BUILD-$SHA"
-$ZIP_NAME = "thrawl-release-$VERSION.zip"
+$PACKAGE_VERSION = "v$BASE_VERSION-$BUILD-$SHA"
+$ZIP_NAME = "thrawl-$PACKAGE_VERSION-release.zip"
+
+Write-Utf8NoBom (Join-Path $OUT "module.prop") @"
+id=thrawl
+name=Thrawl
+version=$PACKAGE_VERSION
+versionCode=$BUILD
+author=GitHub@Fawrz
+description=A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels.
+updateJson=https://raw.githubusercontent.com/Fawrz/Thrawl/main/update.json
+"@
+
+Write-Utf8NoBom (Join-Path $OUT "update.json") @"
+{
+    "version": "$PACKAGE_VERSION",
+    "versionCode": $BUILD,
+    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/$PACKAGE_VERSION/$ZIP_NAME",
+    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/$PACKAGE_VERSION"
+}
+"@
 
 # Package using .NET ZipArchive with Unix forward-slash paths
 $ZIP_PATH = Join-Path $OUT $ZIP_NAME

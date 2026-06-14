@@ -5,8 +5,13 @@ MODDIR="${MODDIR:-/data/adb/modules/thrawl}"
 RUNTIME_LOG_DIR="/data/adb/thrawl/logs"
 RUNTIME_CONFIG="/data/adb/thrawl/config.conf"
 
-ui_print() { echo "$1"; }
-abort() { ui_print "! $1"; exit 1; }
+if ! command -v ui_print >/dev/null 2>&1; then
+    ui_print() { echo "$1"; }
+fi
+
+if ! command -v abort >/dev/null 2>&1; then
+    abort() { ui_print "! $1"; exit 1; }
+fi
 
 prop_get() { getprop "$1" 2>/dev/null; }
 prop_set() { resetprop "$1" "$2" 2>/dev/null; }

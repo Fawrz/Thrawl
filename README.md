@@ -3,7 +3,7 @@
 > Adaptive LMKD / swappiness / ZRAM / swap optimizer for rooted Android (Magisk module).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/Fawrz/Thrawl/releases)
+[![Version](https://img.shields.io/badge/version-v1.0.1-blue.svg)](https://github.com/Fawrz/Thrawl/releases)
 [![Magisk](https://img.shields.io/badge/Magisk-20.4%2B-green.svg)](https://github.com/topjohnwu/Magisk)
 [![Android](https://img.shields.io/badge/Android-8%E2%80%9313-brightgreen.svg)](#requirements)
 [![Arch](https://img.shields.io/badge/arch-arm64%20%7C%20armv7-orange.svg)](#requirements)
@@ -190,7 +190,7 @@ For building from source:
 
 ### Option A: Download a prebuilt zip (recommended)
 
-1. Download the latest `thrawl-vX.Y.Z.zip` from the [Releases](https://github.com/Fawrz/Thrawl/releases) page.
+1. Download the latest `thrawl-v1.0.1-{BUILD}-{SHA}-release.zip` from the [Releases](https://github.com/Fawrz/Thrawl/releases) page.
 2. Open the **Magisk Manager** app.
 3. Go to **Modules** -> **Install from storage** and pick the zip.
 4. Reboot.
@@ -198,8 +198,8 @@ For building from source:
 ### Option B: Push via ADB
 
 ```bash
-adb push thrawl-release-v1.0.0-22-725caa5.zip /sdcard/
-adb shell su -c 'magisk --install-module /sdcard/thrawl-release-v1.0.0-22-725caa5.zip'
+adb push thrawl-v1.0.1-{BUILD}-{SHA}-release.zip /sdcard/
+adb shell su -c 'magisk --install-module /sdcard/thrawl-v1.0.1-{BUILD}-{SHA}-release.zip'
 adb reboot
 ```
 
@@ -370,7 +370,7 @@ It writes a full report to `/data/adb/thrawl/logs/diagnostics.txt`.
 Almost always a packaging problem, not a runtime bug. Verify the zip was built with forward-slash paths:
 
 ```bash
-unzip -l thrawl-release-v1.0.0-22-725caa5.zip
+unzip -l thrawl-v1.0.1-{BUILD}-{SHA}-release.zip
 ```
 
 You should see `scripts/utils.sh`, not `scripts\utils.sh`. The bundled `build.ps1` uses the .NET `ZipArchive` API to force Unix-style paths; if you rebuilt the zip manually with `Compress-Archive`, you have the same bug we already fixed.
@@ -471,26 +471,17 @@ The script:
 - Locates the NDK in `ANDROID_NDK_HOME` or the default Windows SDK path.
 - Cross-compiles `thrawld` for `aarch64-linux-android` and `armv7-linux-androideabi` with `cargo ndk`.
 - Stages scripts, props, and binaries into `build-out/`.
-- Packages everything into `build-out/thrawl-release-v1.0.0-22-725caa5.zip` using the .NET `ZipArchive` API to enforce Unix forward-slash paths.
+- Packages everything into `build-out/thrawl-v1.0.1-{BUILD}-{SHA}-release.zip` using the .NET `ZipArchive` API to enforce Unix forward-slash paths.
 
 ### Build with the included script (Linux / macOS)
 
-The current repository ships a Windows-only `build.ps1`. On Unix, use the manual flow:
+The Unix build script stamps release metadata and names the zip for you:
 
 ```bash
-rustup target add aarch64-linux-android armv7-linux-androideabi
-cargo ndk --target aarch64-linux-android --platform 30 build --release
-cargo ndk --target armv7-linux-androideabi --platform 30 build --release
-
-OUT=build-out
-rm -rf $OUT && mkdir -p $OUT/{scripts,system/bin/aarch64,system/bin/arm}
-cp customize.sh post-fs-data.sh service.sh uninstall.sh action.sh \
-   module.prop system.prop config.conf $OUT/
-cp scripts/*.sh $OUT/scripts/
-cp target/aarch64-linux-android/release/thrawld $OUT/system/bin/aarch64/
-cp target/armv7-linux-androideabi/release/thrawld $OUT/system/bin/arm/
-(cd $OUT && zip -r ../thrawl-release-v1.0.0-22-725caa5.zip .)
+./build.sh
 ```
+
+It produces `build-out/thrawl-v1.0.1-{BUILD}-{SHA}-release.zip`.
 
 Release profile (`Cargo.toml`):
 
