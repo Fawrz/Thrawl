@@ -1,6 +1,6 @@
 id=thrawl
 name=Thrawl
-version=v1.0.0
-versionCode=100
-author=Fawrz
+version=v1.0.0-22-725caa5
+versionCode=22
+author=GitHub@Fawrz
 description=A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels.

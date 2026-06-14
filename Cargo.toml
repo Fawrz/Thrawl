@@ -1,6 +1,6 @@
 [package]
 name = "thrawld"
-version = "1.0.0"
+version = "1.0.0-22-725caa5"
 edition = "2021"
 description = "A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels."
 license = "MIT"

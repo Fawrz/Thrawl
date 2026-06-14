@@ -34,9 +34,14 @@ mkdir -p "$OUT/scripts"
 cp -r scripts/*.sh "$OUT/scripts/"
 chmod +x "$OUT/customize.sh" "$OUT/post-fs-data.sh" "$OUT/service.sh" "$OUT/uninstall.sh" "$OUT/action.sh" "$OUT/scripts/"*.sh
 
+# Dynamic version from git
+SHA=$(git rev-parse --short HEAD)
+BUILD=$(git rev-list --count HEAD)
+VERSION="v1.0.0-$BUILD-$SHA"
+ZIP_NAME="thrawl-release-$VERSION.zip"
+
 # Package
 cd "$OUT"
-ZIP_NAME="thrawl-v1.0.0.zip"
 rm -f "$ZIP_NAME"
 zip -r9 "$ZIP_NAME" . -x "*.DS_Store"
 cd - >/dev/null

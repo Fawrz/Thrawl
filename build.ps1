@@ -39,8 +39,13 @@ Copy-Item customize.sh, post-fs-data.sh, service.sh, uninstall.sh, action.sh, mo
 New-Item -ItemType Directory -Path "$OUT\scripts" -Force | Out-Null
 Copy-Item scripts\*.sh $OUT\scripts\
 
+# Dynamic version from git
+$SHA = (git rev-parse --short HEAD).Trim()
+$BUILD = (git rev-list --count HEAD).Trim()
+$VERSION = "v1.0.0-$BUILD-$SHA"
+$ZIP_NAME = "thrawl-release-$VERSION.zip"
+
 # Package using .NET ZipArchive with Unix forward-slash paths
-$ZIP_NAME = "thrawl-v1.0.0.zip"
 $ZIP_PATH = Join-Path $OUT $ZIP_NAME
 Remove-Item $ZIP_PATH -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
