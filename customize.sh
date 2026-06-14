@@ -4,5 +4,5 @@ set -e
 . "$MODPATH/scripts/utils.sh"
 . "$MODPATH/scripts/install.sh"
 ensure_runtime_dirs
-install_chimerad_binary
-ui_print "- Chimera installed."
+install_thrawld_binary
+ui_print "- Thrawl installed."

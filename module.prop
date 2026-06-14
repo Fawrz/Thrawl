@@ -1,6 +1,6 @@
-id=chimera
-name=Chimera
+id=thrawl
+name=Thrawl
 version=v1.0.0
 versionCode=100
 author=Fawrz
-description=Adaptive LMKD/swappiness/ZRAM/swap optimizer (Rust daemon)
+description=A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels.

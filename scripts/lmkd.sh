@@ -2,7 +2,7 @@
 # LMKD property helper. Reads config.effective and applies/clears properties.
 . "$(dirname "$0")/utils.sh"
 
-EFFECTIVE="${MODDIR:-/data/adb/modules/chimera}/data/config.effective"
+EFFECTIVE="${MODDIR:-/data/adb/modules/thrawl}/data/config.effective"
 
 apply() {
     [ -f "$EFFECTIVE" ] || { log_warn "lmkd: no config.effective"; return 0; }

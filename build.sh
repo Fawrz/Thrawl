@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Chimera release using cargo-ndk and package the Magisk module.
+# Build Thrawl release using cargo-ndk and package the Magisk module.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -25,7 +25,7 @@ for i in "${!ABIS[@]}"; do
         --platform 30 \
         --manifest-path Cargo.toml \
         build --release
-    cp "target/$ABI/release/chimerad" "$OUT/system/bin/$STAGE/chimerad"
+    cp "target/$ABI/release/thrawld" "$OUT/system/bin/$STAGE/thrawld"
 done
 
 # Stage all scripts / props
@@ -36,7 +36,7 @@ chmod +x "$OUT/customize.sh" "$OUT/post-fs-data.sh" "$OUT/service.sh" "$OUT/unin
 
 # Package
 cd "$OUT"
-ZIP_NAME="chimera-v1.0.0.zip"
+ZIP_NAME="thrawl-v1.0.0.zip"
 rm -f "$ZIP_NAME"
 zip -r9 "$ZIP_NAME" . -x "*.DS_Store"
 cd - >/dev/null

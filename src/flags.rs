@@ -24,7 +24,7 @@ fn process_exists(pid: i32) -> bool {
 pub fn check_and_write_pid(moddir: &Path) -> std::io::Result<()> {
     let dir = moddir.join("data/flags");
     fs::create_dir_all(&dir)?;
-    let pid_path = dir.join("chimerad.pid");
+    let pid_path = dir.join("thrawld.pid");
     if let Ok(body) = fs::read_to_string(&pid_path) {
         if let Ok(existing) = body.trim().parse::<i32>() {
             if existing > 0 && process_exists(existing) {
@@ -41,5 +41,5 @@ pub fn check_and_write_pid(moddir: &Path) -> std::io::Result<()> {
 }
 
 pub fn remove_pid(moddir: &Path) {
-    let _ = fs::remove_file(moddir.join("data/flags/chimerad.pid"));
+    let _ = fs::remove_file(moddir.join("data/flags/thrawld.pid"));
 }

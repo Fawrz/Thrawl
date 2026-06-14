@@ -70,7 +70,7 @@ pub static KEYS: LazyLock<Vec<ConfigKey>> = LazyLock::new(|| vec![
     ConfigKey { name: "ZRAM_COMP_ALGO", kind: ValueKind::String, default: ConfigValue::String("zstd".to_string()) },
     ConfigKey { name: "SWAP_ENABLE", kind: ValueKind::Bool, default: ConfigValue::Bool(true) },
     ConfigKey { name: "SWAP_SIZE_MB", kind: ValueKind::Int(0, 65536), default: ConfigValue::Int(0) },
-    ConfigKey { name: "SWAP_PATH", kind: ValueKind::String, default: ConfigValue::String("/data/adb/chimera/swap".to_string()) },
+    ConfigKey { name: "SWAP_PATH", kind: ValueKind::String, default: ConfigValue::String("/data/adb/thrawl/swap".to_string()) },
     ConfigKey { name: "VM_POLL_INTERVAL_MS", kind: ValueKind::Int(100, 60000), default: ConfigValue::Int(5000) },
     ConfigKey { name: "VM_SWAP_USAGE_LOW", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(40) },
     ConfigKey { name: "VM_SWAP_USAGE_HIGH", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(80) },
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn effective_writer_is_atomic() {
-        let dir = std::env::temp_dir().join("chimera_test_eff");
+        let dir = std::env::temp_dir().join("thrawl_test_eff");
         let _ = std::fs::create_dir_all(&dir);
         let target = dir.join("config.effective");
         let mut m = defaults();

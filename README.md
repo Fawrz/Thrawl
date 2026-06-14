@@ -1,15 +1,15 @@
-# Chimera
+# Thrawl
 
 > Adaptive LMKD / swappiness / ZRAM / swap optimizer for rooted Android (Magisk module).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/Fawrz/Chimera/releases)
+[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/Fawrz/Thrawl/releases)
 [![Magisk](https://img.shields.io/badge/Magisk-20.4%2B-green.svg)](https://github.com/topjohnwu/Magisk)
 [![Android](https://img.shields.io/badge/Android-8%E2%80%9313-brightgreen.svg)](#requirements)
 [![Arch](https://img.shields.io/badge/arch-arm64%20%7C%20armv7-orange.svg)](#requirements)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange.svg)](https://www.rust-lang.org)
 
-Chimera is a Magisk module that tunes the Android memory subsystem in real time using a single, statically-linked native daemon written in Rust. It monitors memory pressure, scales swap and ZRAM on demand, and reconfigures LMKD and userfaultfd garbage collection without requiring shell glue to keep running.
+Thrawl is a Magisk module that tunes the Android memory subsystem in real time using a single, statically-linked native daemon written in Rust. It monitors memory pressure, scales swap and ZRAM on demand, and reconfigures LMKD and userfaultfd garbage collection without requiring shell glue to keep running.
 
 ---
 
@@ -36,13 +36,13 @@ Chimera is a Magisk module that tunes the Android memory subsystem in real time 
 
 ## Description
 
-Chimera is a drop-in memory optimizer for rooted Android devices. Most "RAM booster" modules are scattered shell scripts that race on PID files and lose configuration on every boot. Chimera replaces that surface with a single `chimerad` binary that:
+Thrawl is a drop-in memory optimizer for rooted Android devices. Most "RAM booster" modules are scattered shell scripts that race on PID files and lose configuration on every boot. Thrawl replaces that surface with a single `thrawld` binary that:
 
 - Reads `/proc/pressure/memory` (PSI) on modern kernels, falling back to `/proc/meminfo` pressure heuristics on older ones.
 - Drives `/proc/sys/vm/swappiness` between two user-defined values based on the current pressure.
 - Activates and deactivates a backing swap file and ZRAM devices on demand.
 - Applies LMKD (`ro.lmk.*`) and userfaultfd GC (`ro.dalvik.vm.enable_uffd_gc`, `enable_uffd_gc_2`) properties for the current Android SDK.
-- Persists its configuration across module updates by writing an effective config snapshot to `/data/adb/chimera/config.effective`.
+- Persists its configuration across module updates by writing an effective config snapshot to `/data/adb/thrawl/config.effective`.
 - Hot-reloads on `SIGHUP` and exits cleanly on `SIGTERM`.
 
 The daemon is intentionally small, with no JSON or YAML parsers embedded. All configuration is read from a flat `KEY=VALUE` file with built-in type validation and clamping.
@@ -52,8 +52,8 @@ The daemon is intentionally small, with no JSON or YAML parsers embedded. All co
 ## Features
 
 ### Pressure backends
-- **PSI backend** (Linux 4.20+): reads `some avg60=` from `/proc/pressure/memory` and writes swappiness once per poll cycle.
-- **Legacy backend** (Linux 3.18 - 4.19, or kernels without `CONFIG_PSI`): reads `MemTotal` and `MemAvailable` and applies a hysteresis state machine so swappiness does not oscillate at the threshold.
+- **PSI backend** (Kernel 4.20+): reads `some avg60=` from `/proc/pressure/memory` and writes swappiness once per poll cycle.
+- **Legacy backend** (Kernel 3.18 - 4.19, or kernels without `CONFIG_PSI`): reads `MemTotal` and `MemAvailable` and applies a hysteresis state machine so swappiness does not oscillate at the threshold.
 
 ### Swappiness
 - Two-state auto-tuning between `SWAPPINESS_LOW` and `SWAPPINESS_HIGH`.
@@ -66,7 +66,7 @@ The daemon is intentionally small, with no JSON or YAML parsers embedded. All co
 - Auto-sizing: defaults to `MemTotal / 4`, clamped between 512 MB and 4 GB.
 
 ### Swap
-- Backing swap file under `SWAP_PATH` (default `/data/adb/chimera/swap`).
+- Backing swap file under `SWAP_PATH` (default `/data/adb/thrawl/swap`).
 - `mkswap` / `swapon` / `swapoff` lifecycle with timeout-protected invocations.
 - Active swap devices are recorded in `data/flags/swap.d/*.swap` so the daemon can clean up after itself.
 
@@ -80,11 +80,11 @@ The daemon is intentionally small, with no JSON or YAML parsers embedded. All co
 - Never enables v1 and v2 simultaneously.
 
 ### Logging
-- Persistent `logcat -v threadtime` capture into `/data/adb/chimera/logs/logcat.log` with size-based rotation (`LOG_MAX_SIZE_KB`, `LOG_RETAIN_COUNT`).
-- Daemon activity log at `/data/adb/chimera/logs/chimera.log`.
+- Persistent `logcat -v threadtime` capture into `/data/adb/thrawl/logs/logcat.log` with size-based rotation (`LOG_MAX_SIZE_KB`, `LOG_RETAIN_COUNT`).
+- Daemon activity log at `/data/adb/thrawl/logs/thrawl.log`.
 
 ### Lifecycle
-- PID lock file in `data/flags/chimerad.pid` with stale-PID recovery.
+- PID lock file in `data/flags/thrawld.pid` with stale-PID recovery.
 - Hot-reload on `SIGHUP` (re-reads config, reapplies helpers).
 - Clean shutdown on `SIGTERM`, releases PID file.
 - Magisk action button (`action.sh`) restarts the daemon on demand.
@@ -99,8 +99,8 @@ The daemon is intentionally small, with no JSON or YAML parsers embedded. All co
 Android boot
   -> Magisk loads module
     -> post-fs-data.sh  : validates / creates system.prop defaults
-      -> service.sh     : copies config.conf to /data/adb/chimera/ (first boot)
-        -> exec chimerad <MODDIR>
+      -> service.sh     : copies config.conf to /data/adb/thrawl/ (first boot)
+        -> exec thrawld <MODDIR>
           -> detects PSI availability, writes data/flags/psi_available
           -> writes data/flags/swappiness_backend = "psi" | "legacy"
           -> applies LMKD + UFFD + logging helpers
@@ -111,7 +111,7 @@ Android boot
 ### Daemon structure
 
 ```
-chimerad (single process, multi-thread capable)
+thrawld (single process, multi-thread capable)
   |
   +-- config.rs        : typed KEYS table, parser, effective config writer
   +-- psi.rs           : /proc/pressure/memory reader, poll() wait
@@ -136,7 +136,7 @@ chimerad (single process, multi-thread capable)
 ### File layout at runtime
 
 ```
-/data/adb/modules/chimera/        # Magisk module dir (read-only root of install)
+/data/adb/modules/thrawl/        # Magisk module dir (read-only root of install)
   customize.sh
   service.sh
   post-fs-data.sh
@@ -146,19 +146,19 @@ chimerad (single process, multi-thread capable)
   system.prop
   config.conf                     # source of truth (read on every reload)
   scripts/                        # helper shell scripts
-  system/bin/chimerad             # active binary (copied from aarch64/ or arm/)
+  system/bin/thrawld             # active binary (copied from aarch64/ or arm/)
   data/
     config.effective              # generated snapshot, consumed by scripts
-    flags/chimerad.pid            # daemon PID
+    flags/thrawld.pid            # daemon PID
     flags/psi_available           # "1" or "0"
     flags/swappiness_backend      # "psi" or "legacy"
     flags/logcat.pid              # logging helper PID
     flags/swap.d/*.swap           # one file per active swap device
 
-/data/adb/chimera/                # user-mutable state
+/data/adb/thrawl/                # user-mutable state
   config.conf                     # first-boot copy, may be edited
   logs/
-    chimera.log                   # daemon activity
+    thrawl.log                   # daemon activity
     logcat.log                    # filtered system log
   swap/                           # swap file backing storage
 ```
@@ -190,7 +190,7 @@ For building from source:
 
 ### Option A: Download a prebuilt zip (recommended)
 
-1. Download the latest `chimera-vX.Y.Z.zip` from the [Releases](https://github.com/Fawrz/Chimera/releases) page.
+1. Download the latest `thrawl-vX.Y.Z.zip` from the [Releases](https://github.com/Fawrz/Thrawl/releases) page.
 2. Open the **Magisk Manager** app.
 3. Go to **Modules** -> **Install from storage** and pick the zip.
 4. Reboot.
@@ -198,8 +198,8 @@ For building from source:
 ### Option B: Push via ADB
 
 ```bash
-adb push chimera-v1.0.0.zip /sdcard/
-adb shell su -c 'magisk --install-module /sdcard/chimera-v1.0.0.zip'
+adb push thrawl-v1.0.0.zip /sdcard/
+adb shell su -c 'magisk --install-module /sdcard/thrawl-v1.0.0.zip'
 adb reboot
 ```
 
@@ -210,7 +210,7 @@ See [Building From Source](#building-from-source) below, then flash the produced
 ### Verify the install
 
 ```bash
-adb shell su -c 'pgrep -af chimerad'
+adb shell su -c 'pgrep -af thrawld'
 ```
 
 You should see at least one PID.
@@ -219,7 +219,7 @@ You should see at least one PID.
 
 ## Configuration
 
-The user-facing config lives at `/data/adb/chimera/config.conf` (a copy of the bundled `config.conf`, created on first boot). Lines starting with `#` and blank lines are ignored. Inline `#` comments after a value are also supported.
+The user-facing config lives at `/data/adb/thrawl/config.conf` (a copy of the bundled `config.conf`, created on first boot). Lines starting with `#` and blank lines are ignored. Inline `#` comments after a value are also supported.
 
 Every key has a fixed type, a default, and (for integers) a range. Invalid values fall back to the default with a warning printed to the daemon's stderr (visible in logcat). Out-of-range integers are clamped to the range.
 
@@ -263,7 +263,7 @@ Every key has a fixed type, a default, and (for integers) a range. Invalid value
 |-----|------|---------|-------|-------------|
 | `SWAP_ENABLE` | bool | `1` | `0` / `1` | Enable the swap file. |
 | `SWAP_SIZE_MB` | int | `0` | 0-65536 | Swap file size in MB. `0` = auto. |
-| `SWAP_PATH` | string | `/data/adb/chimera/swap` | valid path | Directory in which the swap file lives. |
+| `SWAP_PATH` | string | `/data/adb/thrawl/swap` | valid path | Directory in which the swap file lives. |
 
 #### VM controller (scaffold)
 
@@ -307,7 +307,7 @@ Every key has a fixed type, a default, and (for integers) a range. Invalid value
 Edit the file on-device with your preferred root editor, then send `SIGHUP`:
 
 ```bash
-adb shell su -c 'kill -HUP $(cat /data/adb/modules/chimera/data/flags/chimerad.pid)'
+adb shell su -c 'kill -HUP $(cat /data/adb/modules/thrawl/data/flags/thrawld.pid)'
 ```
 
 The daemon reloads the config and writes a fresh `data/config.effective` that the helper scripts (`lmkd.sh`, `uffd.sh`) consume.
@@ -321,19 +321,19 @@ Run this one-liner for a full status dump:
 ```bash
 adb shell su -c '
 echo "=== Daemon PID ==="
-pgrep -af chimerad || echo "(no daemon)"
+pgrep -af thrawld || echo "(no daemon)"
 echo
 echo "=== Backend ==="
-cat /data/adb/modules/chimera/data/flags/swappiness_backend 2>/dev/null
+cat /data/adb/modules/thrawl/data/flags/swappiness_backend 2>/dev/null
 echo
 echo "=== PSI availability ==="
-cat /data/adb/modules/chimera/data/flags/psi_available 2>/dev/null
+cat /data/adb/modules/thrawl/data/flags/psi_available 2>/dev/null
 echo
 echo "=== Current swappiness ==="
 cat /proc/sys/vm/swappiness
 echo
-echo "=== Chimera log (tail) ==="
-tail -n 20 /data/adb/chimera/logs/chimera.log 2>/dev/null
+echo "=== Thrawl log (tail) ==="
+tail -n 20 /data/adb/thrawl/logs/thrawl.log 2>/dev/null
 echo
 echo "=== Active swaps ==="
 cat /proc/swaps
@@ -350,16 +350,16 @@ A healthy install looks like this:
 
 - `pgrep` returns one or more PIDs.
 - `swappiness_backend` reads `psi` on modern kernels, `legacy` otherwise.
-- `chimera.log` shows `[chimera] lmkd: use_psi=...` and `[chimera] uffd: ...` lines.
+- `thrawl.log` shows `[thrawl] lmkd: use_psi=...` and `[thrawl] uffd: ...` lines.
 - `cat /proc/swaps` shows the configured swap file or a `zram0` entry.
 
 A per-subsystem diagnostics dump is also available:
 
 ```bash
-adb shell sh /data/adb/modules/chimera/scripts/diagnostics.sh
+adb shell sh /data/adb/modules/thrawl/scripts/diagnostics.sh
 ```
 
-It writes a full report to `/data/adb/chimera/logs/diagnostics.txt`.
+It writes a full report to `/data/adb/thrawl/logs/diagnostics.txt`.
 
 ---
 
@@ -370,7 +370,7 @@ It writes a full report to `/data/adb/chimera/logs/diagnostics.txt`.
 Almost always a packaging problem, not a runtime bug. Verify the zip was built with forward-slash paths:
 
 ```bash
-unzip -l chimera-v1.0.0.zip
+unzip -l thrawl-v1.0.0.zip
 ```
 
 You should see `scripts/utils.sh`, not `scripts\utils.sh`. The bundled `build.ps1` uses the .NET `ZipArchive` API to force Unix-style paths; if you rebuilt the zip manually with `Compress-Archive`, you have the same bug we already fixed.
@@ -378,33 +378,33 @@ You should see `scripts/utils.sh`, not `scripts\utils.sh`. The bundled `build.ps
 ### Daemon is not running
 
 ```bash
-adb shell su -c 'pgrep -af chimerad'
+adb shell su -c 'pgrep -af thrawld'
 ```
 
 If empty:
 
-1. Check the log: `adb shell su -c 'cat /data/adb/chimera/logs/chimera.log'`.
-2. Check stderr capture: `adb shell su -c 'logcat -d -t 200 | grep -i chimera'`.
+1. Check the log: `adb shell su -c 'cat /data/adb/thrawl/logs/thrawl.log'`.
+2. Check stderr capture: `adb shell su -c 'logcat -d -t 200 | grep -i thrawl'`.
 3. Run the binary manually to see the error:
 
    ```bash
-   adb shell su -c '/data/adb/modules/chimera/system/bin/chimerad /data/adb/modules/chimera'
+   adb shell su -c '/data/adb/modules/thrawl/system/bin/thrawld /data/adb/modules/thrawl'
    ```
 
 4. Common causes:
-   - Magisk denied `exec` to the binary. Check `chmod 0755` on `system/bin/chimerad`.
-   - Stale PID file from a previous crash. The daemon self-recovers stale PIDs, but you can clear it manually: `rm /data/adb/modules/chimera/data/flags/chimerad.pid`.
-   - ABI mismatch: `customize.sh` aborts with `no chimerad binary for ABI: ...` if the device's primary ABI is neither `aarch64`, `arm64-v8a`, `armeabi-v7a`, nor `armv7l`. The bundled build includes both `aarch64` and `arm` binaries; a custom build with a single ABI must match.
+   - Magisk denied `exec` to the binary. Check `chmod 0755` on `system/bin/thrawld`.
+   - Stale PID file from a previous crash. The daemon self-recovers stale PIDs, but you can clear it manually: `rm /data/adb/modules/thrawl/data/flags/thrawld.pid`.
+   - ABI mismatch: `customize.sh` aborts with `no thrawld binary for ABI: ...` if the device's primary ABI is neither `aarch64`, `arm64-v8a`, `armeabi-v7a`, nor `armv7l`. The bundled build includes both `aarch64` and `arm` binaries; a custom build with a single ABI must match.
 
 ### Swappiness never changes
 
-- Your kernel may clamp swappiness to a maximum below `SWAPPINESS_HIGH`. The daemon auto-detects the kernel's effective max and clamps the target before writing. The actual value applied is the highest value in `[200, 180, 150, 120, 100, 60, 10, 0]` that the kernel accepted. Re-run `swappiness::detect_max` (or check `chimera.log` after a `SIGHUP`) for the discovered maximum.
+- Your kernel may clamp swappiness to a maximum below `SWAPPINESS_HIGH`. The daemon auto-detects the kernel's effective max and clamps the target before writing. The actual value applied is the highest value in `[200, 180, 150, 120, 100, 60, 10, 0]` that the kernel accepted. Re-run `swappiness::detect_max` (or check `thrawl.log` after a `SIGHUP`) for the discovered maximum.
 - If the device is in a low-pressure state for long periods, the value will stay at `SWAPPINESS_LOW`. That is by design.
 
 ### Swap file does not activate
 
 - `SWAP_ENABLE=0` disables it.
-- The first boot copies `config.conf` to `/data/adb/chimera/config.conf`. Subsequent boots read the user copy, not the bundled one. Make sure you are editing the right file.
+- The first boot copies `config.conf` to `/data/adb/thrawl/config.conf`. Subsequent boots read the user copy, not the bundled one. Make sure you are editing the right file.
 - Insufficient free space under `SWAP_PATH`. Free at least `SWAP_SIZE_MB` plus overhead.
 
 ### UFFD does nothing
@@ -412,9 +412,9 @@ If empty:
 - `UFFD_GC_ENABLE=0` (the default). Set it to `1` and `SIGHUP` the daemon.
 - The device must be on Android 12 (SDK 31+) for the v1 path, or Android 13+ (SDK 33) for the v2 path. Older devices log `uffd: unsupported sdk=...` and the feature stays off.
 
-### `customize.sh` aborts with `no chimerad binary for ABI`
+### `customize.sh` aborts with `no thrawld binary for ABI`
 
-The zip contains only `aarch64` and `arm` binaries. If the device is `x86_64` or `x86` you must build the binary for that target. Use `cargo ndk --target x86_64-linux-android --platform 30 build --release` and place the resulting `chimerad` in `system/bin/x86_64/chimerad` before zipping.
+The zip contains only `aarch64` and `arm` binaries. If the device is `x86_64` or `x86` you must build the binary for that target. Use `cargo ndk --target x86_64-linux-android --platform 30 build --release` and place the resulting `thrawld` in `system/bin/x86_64/thrawld` before zipping.
 
 ---
 
@@ -422,13 +422,13 @@ The zip contains only `aarch64` and `arm` binaries. If the device is `x86_64` or
 
 ### Recommended
 
-Open **Magisk Manager** -> **Modules** -> **Chimera** -> **Uninstall**, then reboot. The `uninstall.sh` script will:
+Open **Magisk Manager** -> **Modules** -> **Thrawl** -> **Uninstall**, then reboot. The `uninstall.sh` script will:
 
 - Deactivate every swap device in `flags/swap.d/`.
 - Hot-remove every ZRAM device.
 - Stop the logcat helper.
 - Delete `ro.lmk.use_psi`, `ro.lmk.use_minfree_levels`, `ro.dalvik.vm.enable_uffd_gc`, and `enable_uffd_gc_2`.
-- Remove `data/flags/chimerad.pid` and `data/flags/logcat.pid`.
+- Remove `data/flags/thrawld.pid` and `data/flags/logcat.pid`.
 
 ### Manual cleanup
 
@@ -436,13 +436,13 @@ If Magisk is not available:
 
 ```bash
 adb shell su -c '
-sh /data/adb/modules/chimera/uninstall.sh
-rm -rf /data/adb/chimera
-rm -rf /data/adb/modules/chimera
+sh /data/adb/modules/thrawl/uninstall.sh
+rm -rf /data/adb/thrawl
+rm -rf /data/adb/modules/thrawl
 '
 ```
 
-The user-mutable state under `/data/adb/chimera/` (config, logs, swap file) is preserved on uninstall so that reinstalling keeps your configuration.
+The user-mutable state under `/data/adb/thrawl/` (config, logs, swap file) is preserved on uninstall so that reinstalling keeps your configuration.
 
 ---
 
@@ -469,9 +469,9 @@ cargo install cargo-ndk
 
 The script:
 - Locates the NDK in `ANDROID_NDK_HOME` or the default Windows SDK path.
-- Cross-compiles `chimerad` for `aarch64-linux-android` and `armv7-linux-androideabi` with `cargo ndk`.
+- Cross-compiles `thrawld` for `aarch64-linux-android` and `armv7-linux-androideabi` with `cargo ndk`.
 - Stages scripts, props, and binaries into `build-out/`.
-- Packages everything into `build-out/chimera-v1.0.0.zip` using the .NET `ZipArchive` API to enforce Unix forward-slash paths.
+- Packages everything into `build-out/thrawl-v1.0.0.zip` using the .NET `ZipArchive` API to enforce Unix forward-slash paths.
 
 ### Build with the included script (Linux / macOS)
 
@@ -487,9 +487,9 @@ rm -rf $OUT && mkdir -p $OUT/{scripts,system/bin/aarch64,system/bin/arm}
 cp customize.sh post-fs-data.sh service.sh uninstall.sh action.sh \
    module.prop system.prop config.conf $OUT/
 cp scripts/*.sh $OUT/scripts/
-cp target/aarch64-linux-android/release/chimerad $OUT/system/bin/aarch64/
-cp target/armv7-linux-androideabi/release/chimerad $OUT/system/bin/arm/
-(cd $OUT && zip -r ../chimera-v1.0.0.zip .)
+cp target/aarch64-linux-android/release/thrawld $OUT/system/bin/aarch64/
+cp target/armv7-linux-androideabi/release/thrawld $OUT/system/bin/arm/
+(cd $OUT && zip -r ../thrawl-v1.0.0.zip .)
 ```
 
 Release profile (`Cargo.toml`):
@@ -512,8 +512,8 @@ opt-level = "z"
 ## Project Structure
 
 ```
-chimera/
-  Cargo.toml                       # crate manifest (name = chimerad)
+thrawl/
+  Cargo.toml                       # crate manifest (name = thrawld)
   build.ps1                        # Windows build + package script
   customize.sh                     # Magisk installer entrypoint
   post-fs-data.sh                  # early-boot script
@@ -578,7 +578,7 @@ Two `flags.rs` and `psi.rs` tests are gated on `/proc/sys/vm/swappiness` and `/p
 
 ## Security and Risks
 
-- **Root is mandatory.** Chimera writes to `/proc/sys/vm/swappiness` and triggers `resetprop` / `cmd device_config`. There is no unprivileged mode.
+- **Root is mandatory.** Thrawl writes to `/proc/sys/vm/swappiness` and triggers `resetprop` / `cmd device_config`. There is no unprivileged mode.
 - **Kernel clamping is honored.** The daemon probes the kernel's effective swappiness maximum before writing and clamps the target. It will never write a value the kernel silently rejected (and would ignore anyway).
 - **The swap file is plain bytes.** The daemon pre-allocates `SWAP_SIZE_MB` and `mkswap`s it. Do not point `SWAP_PATH` at a directory that holds user data; the file is truncated on creation.
 - **Logcat capture is unfiltered.** The `logging.sh` helper runs `logcat -v threadtime` with no tag filter, so the captured log may contain other apps' output. Treat the file as potentially sensitive.
@@ -594,7 +594,7 @@ Two `flags.rs` and `psi.rs` tests are gated on `/proc/sys/vm/swappiness` and `/p
 4. Keep shell scripts POSIX-ish and sourceable. Use `set -e` and explicit error messages.
 5. Open a pull request. Describe the problem and the fix; include a logcat excerpt if relevant.
 
-Bug reports: use the [issue tracker](https://github.com/Fawrz/Chimera/issues). Please include device model, Android version, kernel version, `uname -a`, and the output of the [diagnostics script](#verifying-it-works).
+Bug reports: use the [issue tracker](https://github.com/Fawrz/Thrawl/issues). Please include device model, Android version, kernel version, `uname -a`, and the output of the [diagnostics script](#verifying-it-works).
 
 ---
 

@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 use std::collections::HashMap;
 
-use chimerad::config::{self, ConfigValue};
+use thrawld::config::{self, ConfigValue};
 
 fn daemon_reload_flag() -> bool {
     RELOAD_FLAG.swap(false, Ordering::SeqCst)
@@ -20,7 +20,7 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
     std::fs::create_dir_all(&scripts_dir)?;
 
     let current = resolve_config(cfg_path, effective_path, flags_dir.as_path())?;
-    let psi_avail = chimerad::psi::is_available();
+    let psi_avail = thrawld::psi::is_available();
     let backend = if psi_avail { "psi" } else { "legacy" };
     std::fs::write(flags_dir.join("psi_available"), if psi_avail { b"1" } else { b"0" })?;
     std::fs::write(flags_dir.join("swappiness_backend"), backend.as_bytes())?;
@@ -28,7 +28,7 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
 
     apply_helpers(&current, &scripts_dir);
 
-    let swappiness_max = chimerad::swappiness::detect_max();
+    let swappiness_max = thrawld::swappiness::detect_max();
     let cfg_poll = Duration::from_millis(
         current.get("CONFIG_POLL_INTERVAL_MS")
             .and_then(|v| v.as_int())
@@ -53,7 +53,7 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
             last_cfg_mtime = mtime;
             let next_cfg = resolve_config(cfg_path, effective_path, flags_dir.as_path())
                 .unwrap_or_else(|_| current_cfg.clone());
-            let new_psi = chimerad::psi::is_available();
+            let new_psi = thrawld::psi::is_available();
             let new_backend = if new_psi { "psi" } else { "legacy" };
             std::fs::write(flags_dir.join("swappiness_backend"), new_backend.as_bytes())?;
             apply_helpers(&next_cfg, &scripts_dir);
@@ -63,27 +63,27 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
         let low = current_cfg.get("SWAPPINESS_LOW").and_then(|v| v.as_int()).unwrap_or(40);
         let high = current_cfg.get("SWAPPINESS_HIGH").and_then(|v| v.as_int()).unwrap_or(120);
 
-        if chimerad::psi::is_available() {
+        if thrawld::psi::is_available() {
             let threshold = current_cfg.get("PSI_THRESHOLD").and_then(|v| v.as_int()).unwrap_or(70) as f64;
-            let pressure = chimerad::psi::read_avg60().unwrap_or(0.0);
+            let pressure = thrawld::psi::read_avg60().unwrap_or(0.0);
             let target = if pressure * 100.0 >= threshold { high } else { low };
-            let clamped = chimerad::swappiness::clamp_to_kernel(target, swappiness_max);
-            let _ = chimerad::swappiness::write_swappiness(clamped);
+            let clamped = thrawld::swappiness::clamp_to_kernel(target, swappiness_max);
+            let _ = thrawld::swappiness::write_swappiness(clamped);
         } else {
             let threshold = current_cfg.get("LEGACY_PRESSURE_THRESHOLD").and_then(|v| v.as_int()).unwrap_or(65) as f64;
             let hysteresis = current_cfg.get("LEGACY_HYSTERESIS").and_then(|v| v.as_int()).unwrap_or(10) as f64;
-            use chimerad::legacy::{read_meminfo, used_percent, decide, HysteresisOp};
+            use thrawld::legacy::{read_meminfo, used_percent, decide, HysteresisOp};
             if let Ok(mem) = read_meminfo() {
                 let used = used_percent(&mem);
-                let current_val = chimerad::swappiness::read_swappiness().unwrap_or(low);
+                let current_val = thrawld::swappiness::read_swappiness().unwrap_or(low);
                 let op = decide(current_val, used, threshold, hysteresis, low, high);
                 let target = match op {
                     HysteresisOp::Raise => high,
                     HysteresisOp::Lower => low,
                     HysteresisOp::Hold => current_val,
                 };
-                let clamped = chimerad::swappiness::clamp_to_kernel(target, swappiness_max);
-                let _ = chimerad::swappiness::write_swappiness(clamped);
+                let clamped = thrawld::swappiness::clamp_to_kernel(target, swappiness_max);
+                let _ = thrawld::swappiness::write_swappiness(clamped);
             }
         }
 
@@ -102,7 +102,7 @@ fn resolve_config(cfg_path: &Path, effective_path: &Path, _flags_dir: &Path) -> 
             current.insert(k, v);
         }
     }
-    let psi_avail = chimerad::psi::is_available();
+    let psi_avail = thrawld::psi::is_available();
     if let Some(ConfigValue::AutoResolved(ref mut b)) = current.get_mut("PSI_AVAILABLE") {
         *b = psi_avail;
     }
@@ -121,19 +121,19 @@ fn get_mtime(path: &Path) -> std::io::Result<std::time::SystemTime> {
 }
 
 fn apply_helpers(cfg: &HashMap<String, ConfigValue>, scripts_dir: &Path) {
-    let _ = chimerad::lmkd::apply(scripts_dir);
+    let _ = thrawld::lmkd::apply(scripts_dir);
 
     let uffd_on = cfg.get("UFFD_GC_ENABLE").and_then(|v| v.as_bool()).unwrap_or(false);
     if uffd_on {
-        let _ = chimerad::uffd::apply(scripts_dir);
+        let _ = thrawld::uffd::apply(scripts_dir);
     } else {
-        let _ = chimerad::uffd::clear(scripts_dir);
+        let _ = thrawld::uffd::clear(scripts_dir);
     }
 
     let log_on = cfg.get("LOGGING_ENABLE").and_then(|v| v.as_bool()).unwrap_or(true);
     if log_on {
-        let _ = chimerad::logging::start(scripts_dir);
+        let _ = thrawld::logging::start(scripts_dir);
     } else {
-        let _ = chimerad::logging::stop(scripts_dir);
+        let _ = thrawld::logging::stop(scripts_dir);
     }
 }

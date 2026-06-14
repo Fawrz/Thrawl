@@ -33,19 +33,19 @@ fn install_signals() {}
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: chimerad <MODDIR>");
+        eprintln!("usage: thrawld <MODDIR>");
         std::process::exit(2);
     }
     let moddir = PathBuf::from(&args[1]);
     install_signals();
     if let Err(e) = flags::check_and_write_pid(&moddir) {
-        eprintln!("[chimera] pid lock: {}", e);
+        eprintln!("[thrawl] pid lock: {}", e);
         std::process::exit(0);
     }
-    let cfg_path = PathBuf::from("/data/adb/chimera/config.conf");
+    let cfg_path = PathBuf::from("/data/adb/thrawl/config.conf");
     let effective_path = moddir.join("data/config.effective");
     if let Err(e) = run_daemon(&moddir, &cfg_path, &effective_path) {
-        eprintln!("[chimera] fatal: {}", e);
+        eprintln!("[thrawl] fatal: {}", e);
     }
     flags::remove_pid(&moddir);
 }

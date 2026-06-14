@@ -80,10 +80,10 @@ mod tests {
 
     #[test]
     fn record_and_list_roundtrip() {
-        let tmp = std::env::temp_dir().join("chimera_swap_test");
+        let tmp = std::env::temp_dir().join("thrawl_swap_test");
         let _ = std::fs::remove_dir_all(&tmp);
         ensure_flag_dir(&tmp).unwrap();
-        let p = PathBuf::from("/data/adb/chimera/swap/swapfile0");
+        let p = PathBuf::from("/data/adb/thrawl/swap/swapfile0");
         record(&tmp, &p).unwrap();
         let paths = list(&tmp).unwrap();
         assert_eq!(paths, vec![p.clone()]);

@@ -1,9 +1,9 @@
 #!/system/bin/sh
-# Chimera shell utilities. Sourced by other scripts.
+# Thrawl shell utilities. Sourced by other scripts.
 
-MODDIR="${MODDIR:-/data/adb/modules/chimera}"
-RUNTIME_LOG_DIR="/data/adb/chimera/logs"
-RUNTIME_CONFIG="/data/adb/chimera/config.conf"
+MODDIR="${MODDIR:-/data/adb/modules/thrawl}"
+RUNTIME_LOG_DIR="/data/adb/thrawl/logs"
+RUNTIME_CONFIG="/data/adb/thrawl/config.conf"
 
 ui_print() { echo "$1"; }
 abort() { ui_print "! $1"; exit 1; }
@@ -12,9 +12,9 @@ prop_get() { getprop "$1" 2>/dev/null; }
 prop_set() { resetprop "$1" "$2" 2>/dev/null; }
 prop_del() { resetprop --delete "$1" 2>/dev/null; }
 
-log_info() { echo "[chimera] $1" >> "$RUNTIME_LOG_DIR/chimera.log" 2>/dev/null; }
-log_warn() { echo "[chimera][warn] $1" >> "$RUNTIME_LOG_DIR/chimera.log" 2>/dev/null; }
-log_err()  { echo "[chimera][err] $1" >> "$RUNTIME_LOG_DIR/chimera.log" 2>/dev/null; }
+log_info() { echo "[thrawl] $1" >> "$RUNTIME_LOG_DIR/thrawl.log" 2>/dev/null; }
+log_warn() { echo "[thrawl][warn] $1" >> "$RUNTIME_LOG_DIR/thrawl.log" 2>/dev/null; }
+log_err()  { echo "[thrawl][err] $1" >> "$RUNTIME_LOG_DIR/thrawl.log" 2>/dev/null; }
 
 run_with_timeout() {
     secs="$1"; shift
@@ -29,5 +29,5 @@ run_with_timeout() {
 }
 
 ensure_runtime_dirs() {
-    mkdir -p "/data/adb/chimera" "$RUNTIME_LOG_DIR" "/data/adb/chimera/swap"
+    mkdir -p "/data/adb/thrawl" "$RUNTIME_LOG_DIR" "/data/adb/thrawl/swap"
 }

@@ -3,7 +3,7 @@
 . "$(dirname "$0")/utils.sh"
 
 SDK="$(getprop ro.build.version.sdk)"
-EFFECTIVE="${MODDIR:-/data/adb/modules/chimera}/data/config.effective"
+EFFECTIVE="${MODDIR:-/data/adb/modules/thrawl}/data/config.effective"
 UFFD_GC_ENABLE="$(grep '^UFFD_GC_ENABLE=' "$EFFECTIVE" 2>/dev/null | cut -d= -f2)"
 UFFD_GC_ENABLE="${UFFD_GC_ENABLE:-0}"
 

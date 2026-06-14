@@ -1,16 +1,16 @@
 [package]
-name = "chimerad"
-version = "0.1.0"
+name = "thrawld"
+version = "1.0.0"
 edition = "2021"
-description = "Chimera adaptive memory optimizer daemon"
+description = "A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels."
 license = "MIT"
 
 [lib]
-name = "chimerad"
+name = "thrawld"
 path = "src/lib.rs"
 
 [[bin]]
-name = "chimerad"
+name = "thrawld"
 path = "src/main.rs"
 
 [dependencies]

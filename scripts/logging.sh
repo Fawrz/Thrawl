@@ -2,8 +2,8 @@
 # Persistent logcat service with rotation.
 . "$(dirname "$0")/utils.sh"
 
-LOGCAT_FLAG="${MODDIR:-/data/adb/modules/chimera}/data/flags/logcat.pid"
-LOG_DIR="/data/adb/chimera/logs"
+LOGCAT_FLAG="${MODDIR:-/data/adb/modules/thrawl}/data/flags/logcat.pid"
+LOG_DIR="/data/adb/thrawl/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/logcat.log"
 

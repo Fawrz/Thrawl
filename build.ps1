@@ -1,4 +1,4 @@
-# Build Chimera Magisk Module using cargo-ndk
+# Build Thrawl Magisk Module using cargo-ndk
 # Run from PowerShell: .\build.ps1
 
 $ErrorActionPreference = "Stop"
@@ -28,9 +28,10 @@ $ABIS = @(
 
 foreach ($abi in $ABIS) {
     Write-Host "==> Building $($abi.Target)"
-    cargo ndk --target $abi.Target --platform 30 --manifest-path Cargo.toml build --release 2>&1
-    if (-not $?) { throw "Build failed for $($abi.Target)" }
-    Copy-Item "target\$($abi.Target)\release\chimerad" "$OUT\system\bin\$($abi.Stage)\chimerad"
+    $output = & { cargo ndk --target $abi.Target --platform 30 --manifest-path Cargo.toml build --release } 2>&1 | ForEach-Object { "$_" }
+    if ($LASTEXITCODE -ne 0) { throw "Build failed for $($abi.Target)" }
+    Write-Host $output
+    Copy-Item "target\$($abi.Target)\release\thrawld" "$OUT\system\bin\$($abi.Stage)\thrawld"
 }
 
 # Stage all scripts / props
@@ -39,7 +40,7 @@ New-Item -ItemType Directory -Path "$OUT\scripts" -Force | Out-Null
 Copy-Item scripts\*.sh $OUT\scripts\
 
 # Package using .NET ZipArchive with Unix forward-slash paths
-$ZIP_NAME = "chimera-v1.0.0.zip"
+$ZIP_NAME = "thrawl-v1.0.0.zip"
 $ZIP_PATH = Join-Path $OUT $ZIP_NAME
 Remove-Item $ZIP_PATH -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
