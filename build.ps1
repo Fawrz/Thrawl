@@ -25,7 +25,6 @@ $msvc = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools
 $sdk = "C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0"
 $env:LIB = "$msvc\lib\x64;$sdk\ucrt\x64;$sdk\um\x64"
 $env:INCLUDE = "$msvc\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared"
-
 $BASE_VERSION_LINE = Get-Content "module.prop" | Where-Object { $_ -match '^version=v' } | Select-Object -First 1
 $BASE_VERSION = ($BASE_VERSION_LINE -replace '^version=v', '').Trim()
 if (-not $BASE_VERSION) { throw "Unable to determine base version from module.prop" }
@@ -42,9 +41,17 @@ $ABIS = @(
 
 foreach ($abi in $ABIS) {
     Write-Host "==> Building $($abi.Target)"
-    $output = & { cargo ndk --target $abi.Target --platform 30 --manifest-path Cargo.toml build --release } 2>&1 | ForEach-Object { "$_" }
-    if ($LASTEXITCODE -ne 0) { throw "Build failed for $($abi.Target)" }
-    Write-Host $output
+    $prevEA = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = cargo ndk --target $abi.Target --platform 30 --manifest-path Cargo.toml build --release 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prevEA
+    }
+    $outputLines = $output | ForEach-Object { "$_" }
+    Write-Host $outputLines
+    if ($exitCode -ne 0) { throw "Build failed for $($abi.Target)" }
     Copy-Item "target\$($abi.Target)\release\thrawld" "$OUT\system\bin\$($abi.Stage)\thrawld"
 }
 
@@ -102,4 +109,62 @@ try {
     $zipStream.Dispose()
 }
 
+# Create source archives (from repo root, exclude build-out, target, .git)
+$REPO_ROOT = (Get-Location).Path
+$REPO_NAME = Split-Path $REPO_ROOT -Leaf
+$REPO_PARENT = Split-Path $REPO_ROOT -Parent
+$SOURCE_NAME = "$PACKAGE_VERSION-source"
+$SOURCE_TAR_PATH = Join-Path $OUT "$SOURCE_NAME.tar.gz"
+$SOURCE_ZIP_PATH = Join-Path $OUT "$SOURCE_NAME.zip"
+
+# Create source tarball using tar (Windows 10+ ships with bsdtar)
+Push-Location $REPO_PARENT
+try {
+    tar --exclude='build-out' --exclude='target' --exclude='.git' -czf $SOURCE_TAR_PATH $REPO_NAME
+} finally {
+    Pop-Location
+}
+
+# Create source zip using .NET ZipArchive
+$sourceZipStream = [System.IO.File]::Create($SOURCE_ZIP_PATH)
+$sourceZip = [System.IO.Compression.ZipArchive]::new($sourceZipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    $sourceFiles = Get-ChildItem -Recurse -File $REPO_ROOT | Where-Object {
+        $full = $_.FullName
+        -not ($full.Contains([IO.Path]::DirectorySeparatorChar + 'build-out' + [IO.Path]::DirectorySeparatorChar)) -and
+        -not ($full.Contains([IO.Path]::DirectorySeparatorChar + 'target' + [IO.Path]::DirectorySeparatorChar)) -and
+        -not ($full.Contains([IO.Path]::DirectorySeparatorChar + '.git' + [IO.Path]::DirectorySeparatorChar))
+    }
+    foreach ($f in $sourceFiles) {
+        $rel = $f.FullName.Substring($REPO_ROOT.Length + 1)
+        $rel = $rel.Replace('\', '/')
+        $entry = $sourceZip.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
+        $entryWriter = $entry.Open()
+        $fileBytes = [System.IO.File]::ReadAllBytes($f.FullName)
+        $entryWriter.Write($fileBytes, 0, $fileBytes.Length)
+        $entryWriter.Dispose()
+    }
+} finally {
+    $sourceZip.Dispose()
+    $sourceZipStream.Dispose()
+}
+
+# Generate SHA256SUMS
+$files = @(
+    (Join-Path $OUT $ZIP_NAME),
+    $SOURCE_TAR_PATH,
+    $SOURCE_ZIP_PATH
+)
+
+$sumContent = ($files | ForEach-Object {
+    $hash = Get-FileHash -Path $_ -Algorithm SHA256
+    $name = Split-Path $hash.Path -Leaf
+    "$($hash.Hash.ToUpper())  $name"
+}) -join "`n"
+
+Write-Utf8NoBom (Join-Path $OUT "SHA256SUMS") $sumContent
+
 Write-Host "Built: $ZIP_PATH"
+Write-Host "Source tarball: $SOURCE_TAR_PATH"
+Write-Host "Source zip: $SOURCE_ZIP_PATH"
+Write-Host "SHA256SUMS: $(Join-Path $OUT 'SHA256SUMS')"

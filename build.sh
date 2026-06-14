@@ -67,4 +67,25 @@ cd "$OUT"
 rm -f "$ZIP_NAME"
 zip -r9 "$ZIP_NAME" . -x "*.DS_Store"
 cd - >/dev/null
+
+# Create source archives (from repo root, exclude build-out, target, .git)
+REPO_ROOT="$(pwd)"
+REPO_NAME="$(basename "$REPO_ROOT")"
+REPO_PARENT="$(dirname "$REPO_ROOT")"
+SOURCE_TAR="$OUT/${PACKAGE_VERSION}-source.tar.gz"
+SOURCE_ZIP="$OUT/${PACKAGE_VERSION}-source.zip"
+
+tar --exclude='build-out' --exclude='target' --exclude='.git' -czf "$SOURCE_TAR" -C "$REPO_PARENT" "$REPO_NAME"
+zip -r9 "$SOURCE_ZIP" . -x "build-out/*" "target/*" ".git/*" "*.DS_Store"
+
+# Generate SHA256SUMS
+cd "$OUT"
+{
+    sha256sum "$ZIP_NAME" "$SOURCE_TAR" "$SOURCE_ZIP"
+} > SHA256SUMS
+cd - >/dev/null
+
 echo "Built: $OUT/$ZIP_NAME"
+echo "Source tarball: $SOURCE_TAR"
+echo "Source zip: $SOURCE_ZIP"
+echo "SHA256SUMS: $OUT/SHA256SUMS"
