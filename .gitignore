@@ -1,5 +1,5 @@
-/target
-/system/bin/*/thrawld
-/build-out/
+target/
+system/bin/*/thrawld
+build-out/
 *.zip
 .DS_Store
