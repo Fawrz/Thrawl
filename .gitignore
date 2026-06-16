@@ -2,3 +2,4 @@
 /system/bin/*/thrawld
 /build-out/
 *.zip
+.DS_Store
