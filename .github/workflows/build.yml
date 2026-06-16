@@ -30,7 +30,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: Thrawl -> target
+          workspaces: . -> target
 
       - name: Install Android NDK
         uses: nttld/setup-ndk@v1
@@ -41,17 +41,17 @@ jobs:
         run: cargo install cargo-ndk
 
       - name: Run unit tests
-        run: cargo test --manifest-path Thrawl/Cargo.toml
+        run: cargo test --manifest-path Cargo.toml
 
       - name: Build module
-        run: bash Thrawl/build.sh
+        run: bash build.sh
 
       - name: Prepare artifact metadata
         id: prepare
         run: |
           set -e
-          ZIP_FILE=$(find Thrawl/build-out -maxdepth 1 -name "thrawl-*-release.zip" | head -1)
-          SUMS_FILE="Thrawl/build-out/SHA256SUMS"
+          ZIP_FILE=$(find build-out -maxdepth 1 -name "thrawl-*-release.zip" | head -1)
+          SUMS_FILE="build-out/SHA256SUMS"
           test -f "$ZIP_FILE" || { echo "release zip not found"; exit 1; }
           test -f "$SUMS_FILE" || { echo "SHA256SUMS not found"; exit 1; }
           ZIP_NAME=$(basename "$ZIP_FILE")
@@ -60,7 +60,7 @@ jobs:
       - name: Verify module.prop
         run: |
           set -e
-          ZIP_FILE=$(find Thrawl/build-out -maxdepth 1 -name "thrawl-*-release.zip" | head -1)
+          ZIP_FILE=$(find build-out -maxdepth 1 -name "thrawl-*-release.zip" | head -1)
           VERSION=$(unzip -p "$ZIP_FILE" module.prop | grep '^version=' | cut -d= -f2-)
           test -n "$VERSION" || { echo "version missing in module.prop"; exit 1; }
           echo "module.prop version=$VERSION"
@@ -69,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.prepare.outputs.zipName }}
-          path: Thrawl/build-out/thrawl-*-release.zip
+          path: build-out/thrawl-*-release.zip
           retention-days: 30
           if-no-files-found: error
 
@@ -77,7 +77,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SHA256SUMS-${{ github.run_number }}
-          path: Thrawl/build-out/SHA256SUMS
+          path: build-out/SHA256SUMS
           retention-days: 30
           if-no-files-found: error
 
