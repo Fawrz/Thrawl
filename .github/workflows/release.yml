@@ -1,0 +1,98 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Thrawl release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Thrawl -> target
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Run unit tests
+        run: cargo test --manifest-path Thrawl/Cargo.toml
+
+      - name: Build module
+        run: bash Thrawl/build.sh
+
+      - name: Prepare release
+        id: prepare
+        run: |
+          set -e
+          ZIP_FILE=$(find Thrawl/build-out -maxdepth 1 -name "thrawl-*-release.zip" | head -1)
+          test -f "$ZIP_FILE" || { echo "release zip not found"; exit 1; }
+          ZIP_NAME=$(basename "$ZIP_FILE")
+          ZIP_BASE="${ZIP_NAME%.zip}"
+          echo "zipName=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zipBase=$ZIP_BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Verify module.prop
+        run: |
+          set -e
+          ZIP_FILE=$(find Thrawl/build-out -maxdepth 1 -name "thrawl-*-release.zip" | head -1)
+          VERSION=$(unzip -p "$ZIP_FILE" module.prop | grep '^version=' | cut -d= -f2-)
+          VERSION_CODE=$(unzip -p "$ZIP_FILE" module.prop | grep '^versionCode=' | cut -d= -f2-)
+          test -n "$VERSION" || { echo "version missing in module.prop"; exit 1; }
+          test -n "$VERSION_CODE" || { echo "versionCode missing in module.prop"; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_ENV"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_ENV"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Thrawl ${{ env.version }} (run ${{ github.run_number }})"
+          body: |
+            ## Thrawl ${{ env.version }}
+
+            - **Version**: ${{ env.version }}
+            - **Version code**: ${{ env.version_code }}
+            - **Commit**: ${{ github.sha }}
+
+            ### Assets
+            - `thrawl-*.zip` — Magisk module ready to flash
+            - `*-source.tar.gz` / `*-source.zip` — source archives
+            - `SHA256SUMS` — checksums for all assets
+            - `update.json` — Magisk update manifest
+          files: |
+            Thrawl/build-out/thrawl-*-release.zip
+            Thrawl/build-out/*-source.tar.gz
+            Thrawl/build-out/*-source.zip
+            Thrawl/build-out/SHA256SUMS
+            Thrawl/build-out/update.json
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Release Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: ${{ steps.prepare.outputs.zipName }}" >> "$GITHUB_STEP_SUMMARY"
