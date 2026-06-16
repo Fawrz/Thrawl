@@ -38,20 +38,29 @@ cp -r scripts/*.sh "$OUT/scripts/"
 chmod +x "$OUT/customize.sh" "$OUT/post-fs-data.sh" "$OUT/service.sh" "$OUT/uninstall.sh" "$OUT/action.sh" "$OUT/scripts/"*.sh
 
 # Release version from git metadata.
-SHA=$(git rev-parse --short HEAD)
-BUILD=$(git rev-list --count HEAD)
-TAG=$(git describe --tags --exact-match HEAD 2>/dev/null)
+SHA="$(git rev-parse --short HEAD)"
+BUILD="$(git rev-list --count HEAD)"
+TAG="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
+
 if [ -n "$TAG" ]; then
-    PACKAGE_VERSION="$TAG"
+    BASE_TAG="$TAG"
 else
-    PACKAGE_VERSION="v${BASE_VERSION}-${BUILD}-${SHA}"
+    BASE_TAG="v${BASE_VERSION}"
 fi
-ZIP_NAME="thrawl-${PACKAGE_VERSION}-release.zip"
+
+# Display version: vX.Y.Z (build-SHA)
+DISPLAY_VERSION="${BASE_TAG} (${BUILD}-${SHA})"
+# Asset slug: vX.Y.Z-build-SHA (filesystem-safe)
+ASSET_VERSION="${BASE_TAG}-${BUILD}-${SHA}"
+# Release tag (clean): vX.Y.Z or vX.Y.Z-build-SHA if not on a tag
+RELEASE_TAG="${TAG:-$ASSET_VERSION}"
+
+ZIP_NAME="thrawl-${ASSET_VERSION}-release.zip"
 
 cat > "$OUT/module.prop" <<EOF
 id=thrawl
 name=Thrawl
-version=${PACKAGE_VERSION}
+version=${DISPLAY_VERSION}
 versionCode=${BUILD}
 author=GitHub@Fawrz
 description=A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels.
@@ -60,10 +69,10 @@ EOF
 
 cat > "$OUT/update.json" <<EOF
 {
-    "version": "${PACKAGE_VERSION}",
+    "version": "${DISPLAY_VERSION}",
     "versionCode": ${BUILD},
-    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/${PACKAGE_VERSION}/${ZIP_NAME}",
-    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/${PACKAGE_VERSION}"
+    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/${RELEASE_TAG}/${ZIP_NAME}",
+    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/${RELEASE_TAG}"
 }
 EOF
 
@@ -77,8 +86,8 @@ cd - >/dev/null
 REPO_ROOT="$(pwd)"
 REPO_NAME="$(basename "$REPO_ROOT")"
 REPO_PARENT="$(dirname "$REPO_ROOT")"
-SOURCE_TAR="$OUT/${PACKAGE_VERSION}-source.tar.gz"
-SOURCE_ZIP="$OUT/${PACKAGE_VERSION}-source.zip"
+SOURCE_TAR="$OUT/${ASSET_VERSION}-source.tar.gz"
+SOURCE_ZIP="$OUT/${ASSET_VERSION}-source.zip"
 
 tar --exclude='build-out' --exclude='target' --exclude='.git' -czf "$SOURCE_TAR" -C "$REPO_PARENT" "$REPO_NAME"
 zip -r9 "$SOURCE_ZIP" . -x "build-out/*" "target/*" ".git/*" "*.DS_Store"
