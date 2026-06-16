@@ -62,19 +62,29 @@ Copy-Item scripts\*.sh $OUT\scripts\
 
 # Release version from git metadata.
 $SHA = (git rev-parse --short HEAD).Trim()
-$BUILD = (git rev-list --count HEAD).Trim()
+$BUILD = [int](git rev-list --count HEAD).Trim()
 $TAG = & { git describe --tags --exact-match HEAD } 2>$null
 if ($TAG) {
-    $PACKAGE_VERSION = $TAG.Trim()
+    $TAG = $TAG.Trim()
+    $BASE_TAG = $TAG
 } else {
-    $PACKAGE_VERSION = "v$BASE_VERSION-$BUILD-$SHA"
+    $BASE_TAG = "v$BASE_VERSION"
 }
-$ZIP_NAME = "thrawl-$PACKAGE_VERSION-release.zip"
+
+$DISPLAY_VERSION = "$BASE_TAG ($BUILD-$SHA)"
+$ASSET_VERSION = "$BASE_TAG-$BUILD-$SHA"
+if ($TAG) {
+    $RELEASE_TAG = $TAG
+} else {
+    $RELEASE_TAG = $ASSET_VERSION
+}
+
+$ZIP_NAME = "thrawl-$ASSET_VERSION-release.zip"
 
 Write-Utf8NoBom (Join-Path $OUT "module.prop") @"
 id=thrawl
 name=Thrawl
-version=$PACKAGE_VERSION
+version=$DISPLAY_VERSION
 versionCode=$BUILD
 author=GitHub@Fawrz
 description=A Rust daemon for adaptive memory management — ZRAM, swap, swappiness, and LMKD tuning. Works on PSI and legacy kernels.
@@ -83,10 +93,10 @@ updateJson=https://raw.githubusercontent.com/Fawrz/Thrawl/main/update.json
 
 Write-Utf8NoBom (Join-Path $OUT "update.json") @"
 {
-    "version": "$PACKAGE_VERSION",
+    "version": "$DISPLAY_VERSION",
     "versionCode": $BUILD,
-    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/$PACKAGE_VERSION/$ZIP_NAME",
-    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/$PACKAGE_VERSION"
+    "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/$RELEASE_TAG/$ZIP_NAME",
+    "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/$RELEASE_TAG"
 }
 "@
 
@@ -118,7 +128,7 @@ try {
 $REPO_ROOT = (Get-Location).Path
 $REPO_NAME = Split-Path $REPO_ROOT -Leaf
 $REPO_PARENT = Split-Path $REPO_ROOT -Parent
-$SOURCE_NAME = "$PACKAGE_VERSION-source"
+$SOURCE_NAME = "$ASSET_VERSION-source"
 $SOURCE_TAR_PATH = Join-Path $OUT "$SOURCE_NAME.tar.gz"
 $SOURCE_ZIP_PATH = Join-Path $OUT "$SOURCE_NAME.zip"
 
