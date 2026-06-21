@@ -104,3 +104,20 @@ jobs:
           echo "- Status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tag: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Artifact: ${{ steps.prepare.outputs.zipName }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update update.json on main
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          cat > update.json <<EOF
+          {
+              "version": "${{ env.version }}",
+              "versionCode": ${{ env.version_code }},
+              "zipUrl": "https://github.com/Fawrz/Thrawl/releases/download/${{ github.ref_name }}/${{ steps.prepare.outputs.zipName }}",
+              "changelog": "https://github.com/Fawrz/Thrawl/releases/tag/${{ github.ref_name }}"
+          }
+          EOF
+          git add update.json
+          git diff --cached --quiet || git commit -m "ci: update update.json for ${{ github.ref_name }}" && git push origin main
