@@ -83,3 +83,10 @@ zip -r9 "$ZIP_NAME" . -x "*.DS_Store"
 cd - >/dev/null
 
 echo "Built: $OUT/$ZIP_NAME"
+
+# Generate SHA256SUMS
+cd "$OUT"
+sha256sum "$ZIP_NAME" > SHA256SUMS
+cd - >/dev/null
+
+echo "SHA256SUMS: $OUT/SHA256SUMS"

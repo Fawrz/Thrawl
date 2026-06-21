@@ -125,3 +125,11 @@ try {
 }
 
 Write-Host "Built: $ZIP_PATH"
+
+# Generate SHA256SUMS
+$sumContent = (Get-FileHash (Join-Path $OUT $ZIP_NAME) -Algorithm SHA256 | ForEach-Object {
+    "$($_.Hash.ToUpper())  $ZIP_NAME"
+})
+Write-Utf8NoBom (Join-Path $OUT "SHA256SUMS") $sumContent
+
+Write-Host "SHA256SUMS: $(Join-Path $OUT 'SHA256SUMS')"

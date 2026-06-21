@@ -90,9 +90,11 @@ jobs:
 
             ### Assets
             - `thrawl-*.zip` — Magisk module ready to flash
+            - `SHA256SUMS` — checksums for all assets
             - `update.json` — Magisk update manifest
           files: |
             build-out/thrawl-*-release.zip
+            build-out/SHA256SUMS
             build-out/update.json
           fail_on_unmatched_files: true
           generate_release_notes: true
