@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[cfg(unix)]
 fn process_exists(pid: i32) -> bool {
@@ -42,4 +42,14 @@ pub fn check_and_write_pid(moddir: &Path) -> std::io::Result<()> {
 
 pub fn remove_pid(moddir: &Path) {
     let _ = fs::remove_file(moddir.join("data/flags/thrawld.pid"));
+}
+
+#[cfg(unix)]
+pub fn protect_from_oom() -> std::io::Result<()> {
+    std::fs::write("/proc/self/oom_score_adj", "-900")
+}
+
+#[cfg(not(unix))]
+pub fn protect_from_oom() -> std::io::Result<()> {
+    Ok(())
 }

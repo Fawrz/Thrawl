@@ -10,7 +10,16 @@ pub fn run_timeout(cmd: &str, args: &[&str], timeout: Duration) -> std::io::Resu
     let start = std::time::Instant::now();
     loop {
         match child.try_wait()? {
-            Some(status) => return Ok(status.code().unwrap_or(-1)),
+            Some(status) => {
+                let code = status.code().unwrap_or(-1);
+                if code != 0 {
+                    return Err(std::io::Error::other(format!(
+                        "command '{}' exited with code {}",
+                        cmd, code
+                    )));
+                }
+                return Ok(code);
+            }
             None => {
                 if start.elapsed() >= timeout {
                     let _ = child.kill();

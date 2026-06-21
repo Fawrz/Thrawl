@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
-use thrawld::config::{self, ConfigValue};
+use thrawld::config::{self, AutoValue, ConfigValue};
+use thrawld::vm_controller::{VmController, VmState};
 
 fn daemon_reload_flag() -> bool {
     RELOAD_FLAG.swap(false, Ordering::SeqCst)
@@ -39,7 +40,7 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
     std::fs::create_dir_all(&flags_dir)?;
     std::fs::create_dir_all(&scripts_dir)?;
 
-    let mut current_cfg = resolve_config(cfg_path, effective_path, flags_dir.as_path())?;
+    let mut current_cfg = resolve_config(cfg_path, effective_path)?;
     let mut backend_is_psi = thrawld::psi::is_available();
     let mut psi_handle = if backend_is_psi {
         thrawld::psi::open_psi().ok()
@@ -56,8 +57,12 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
     let mut config_poll = poll_interval(&current_cfg, "CONFIG_POLL_INTERVAL_MS", 5000);
     let mut psi_poll = poll_interval(&current_cfg, "PSI_POLL_TIMEOUT_MS", 5000);
     let mut legacy_poll = poll_interval(&current_cfg, "LEGACY_POLL_INTERVAL_MS", 5000);
+    let mut vm_poll = poll_interval(&current_cfg, "VM_POLL_INTERVAL_MS", 5000);
 
     let mut last_cfg_mtime = get_mtime(cfg_path);
+    let mut last_cfg_size: Option<u64> = std::fs::metadata(cfg_path).ok().map(|m| m.len());
+
+    let mut vm = VmController::new();
 
     loop {
         if daemon_shutdown_flag() {
@@ -66,19 +71,24 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
 
         let reload = daemon_reload_flag();
         let mtime = get_mtime(cfg_path);
-        let mtime_changed = match (&last_cfg_mtime, &mtime) {
-            (Ok(a), Ok(b)) => a != b,
+        let size = std::fs::metadata(cfg_path).ok().map(|m| m.len());
+        let changed = reload || match (&last_cfg_mtime, &mtime, &last_cfg_size, &size) {
+            (Ok(a), Ok(b), Some(s1), Some(s2)) => a != b || s1 != s2,
+            (Ok(a), Ok(b), _, _) => a != b,
             _ => false,
         };
-        if reload || mtime_changed {
+        if changed {
             last_cfg_mtime = mtime;
-            let next_cfg = resolve_config(cfg_path, effective_path, flags_dir.as_path())
+            last_cfg_size = size;
+            let next_cfg = resolve_config(cfg_path, effective_path)
                 .unwrap_or_else(|_| current_cfg.clone());
-            apply_helpers(&next_cfg, &scripts_dir);
+            vm.reconcile(&current_cfg, &next_cfg, &flags_dir);
+            apply_changed_subsystems(&current_cfg, &next_cfg, &scripts_dir);
             current_cfg = next_cfg;
             config_poll = poll_interval(&current_cfg, "CONFIG_POLL_INTERVAL_MS", 5000);
             psi_poll = poll_interval(&current_cfg, "PSI_POLL_TIMEOUT_MS", 5000);
             legacy_poll = poll_interval(&current_cfg, "LEGACY_POLL_INTERVAL_MS", 5000);
+            vm_poll = poll_interval(&current_cfg, "VM_POLL_INTERVAL_MS", 5000);
         }
 
         let psi_available = thrawld::psi::is_available();
@@ -101,7 +111,7 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
         let high = current_cfg
             .get("SWAPPINESS_HIGH")
             .and_then(|v| v.as_int())
-            .unwrap_or(120);
+            .unwrap_or(100);
 
         if backend_is_psi {
             let threshold = current_cfg
@@ -109,23 +119,31 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
                 .and_then(|v| v.as_int())
                 .unwrap_or(70) as f64;
             let pressure = thrawld::psi::read_avg60().unwrap_or(0.0);
-            let target = if pressure * 100.0 >= threshold {
-                high
-            } else {
-                low
-            };
+            let target = if pressure >= threshold { high } else { low };
             let clamped = thrawld::swappiness::clamp_to_kernel(target, swappiness_max);
             if last_applied_swappiness != Some(clamped) {
                 let _ = thrawld::swappiness::write_swappiness(clamped);
                 last_applied_swappiness = Some(clamped);
             }
 
-            let wait = std::cmp::min(config_poll, psi_poll);
-            if let Some(ref handle) = psi_handle {
+            // VM controller tick
+            let vm_high = current_cfg.get("VM_SWAP_USAGE_HIGH").and_then(|v| v.as_int()).unwrap_or(80) as f64;
+            let vm_low = current_cfg.get("VM_SWAP_USAGE_LOW").and_then(|v| v.as_int()).unwrap_or(40) as f64;
+            let vm_idle_timeout = current_cfg.get("VM_IDLE_TIMEOUT_S").and_then(|v| v.as_int()).unwrap_or(300);
+            let swap_used = thrawld::swap::read_swap_usage_pct().unwrap_or(0.0);
+            let vm_state = vm.tick(pressure, swap_used, vm_high, vm_low, vm_idle_timeout, &current_cfg, &flags_dir);
+            let _ = std::fs::write(flags_dir.join("vm_controller"), match vm_state {
+                VmState::Idle => "idle",
+                VmState::Active => "active",
+                VmState::ActiveNoPressure => "active_no_pressure",
+            });
+
+            let wait = std::cmp::min(std::cmp::min(config_poll, psi_poll), vm_poll);
+            if let Some(ref _handle) = psi_handle {
                 #[cfg(unix)]
                 {
                     use std::os::unix::io::AsRawFd;
-                    let _ = thrawld::psi::wait_event(handle.as_raw_fd(), wait);
+                    let _ = thrawld::psi::wait_event(_handle.as_raw_fd(), wait);
                 }
                 #[cfg(not(unix))]
                 {
@@ -144,8 +162,10 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
                 .and_then(|v| v.as_int())
                 .unwrap_or(10) as f64;
             use thrawld::legacy::{decide, read_meminfo, used_percent, HysteresisOp};
+            let mut pressure_for_vm = 0.0;
             if let Ok(mem) = read_meminfo() {
                 let used = used_percent(&mem);
+                pressure_for_vm = used;
                 let current_val = thrawld::swappiness::read_swappiness().unwrap_or(low);
                 let op = decide(current_val, used, threshold, hysteresis, low, high);
                 let target = match op {
@@ -160,7 +180,19 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
                 }
             }
 
-            std::thread::sleep(std::cmp::min(config_poll, legacy_poll));
+            // VM controller tick
+            let vm_high = current_cfg.get("VM_SWAP_USAGE_HIGH").and_then(|v| v.as_int()).unwrap_or(80) as f64;
+            let vm_low = current_cfg.get("VM_SWAP_USAGE_LOW").and_then(|v| v.as_int()).unwrap_or(40) as f64;
+            let vm_idle_timeout = current_cfg.get("VM_IDLE_TIMEOUT_S").and_then(|v| v.as_int()).unwrap_or(300);
+            let swap_used = thrawld::swap::read_swap_usage_pct().unwrap_or(0.0);
+            let vm_state = vm.tick(pressure_for_vm, swap_used, vm_high, vm_low, vm_idle_timeout, &current_cfg, &flags_dir);
+            let _ = std::fs::write(flags_dir.join("vm_controller"), match vm_state {
+                VmState::Idle => "idle",
+                VmState::Active => "active",
+                VmState::ActiveNoPressure => "active_no_pressure",
+            });
+
+            std::thread::sleep(std::cmp::min(std::cmp::min(config_poll, legacy_poll), vm_poll));
         }
     }
 
@@ -170,7 +202,6 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
 fn resolve_config(
     cfg_path: &Path,
     effective_path: &Path,
-    _flags_dir: &Path,
 ) -> std::io::Result<HashMap<String, ConfigValue>> {
     let mut current = config::defaults();
     if cfg_path.exists() {
@@ -180,16 +211,36 @@ fn resolve_config(
             current.insert(k, v);
         }
     }
+
     let psi_avail = thrawld::psi::is_available();
-    if let Some(ConfigValue::AutoResolved(ref mut b)) = current.get_mut("PSI_AVAILABLE") {
-        *b = psi_avail;
+
+    if let Some(ConfigValue::Auto(ref mut av)) = current.get_mut("PSI_AVAILABLE") {
+        match av {
+            AutoValue::Auto => *av = AutoValue::Resolved(psi_avail),
+            AutoValue::Forced(_) => {}
+            AutoValue::Resolved(_) => {}
+        }
     }
-    if let Some(ConfigValue::AutoResolved(ref mut b)) = current.get_mut("LMKD_USE_PSI") {
-        *b = psi_avail;
+
+    if let Some(ConfigValue::Auto(ref mut av)) = current.get_mut("LMKD_USE_PSI") {
+        match av {
+            AutoValue::Auto => *av = AutoValue::Resolved(psi_avail),
+            AutoValue::Forced(_) => {}
+            AutoValue::Resolved(_) => {}
+        }
     }
-    if let Some(ConfigValue::AutoResolved(ref mut b)) = current.get_mut("LMKD_USE_MINFREE") {
-        *b = !psi_avail;
+
+    let lmkd_psi = current.get("LMKD_USE_PSI")
+        .and_then(|v| v.as_resolved())
+        .unwrap_or(psi_avail);
+    if let Some(ConfigValue::Auto(ref mut av)) = current.get_mut("LMKD_USE_MINFREE") {
+        match av {
+            AutoValue::Auto => *av = AutoValue::Resolved(!lmkd_psi),
+            AutoValue::Forced(_) => {}
+            AutoValue::Resolved(_) => {}
+        }
     }
+
     let _ = config::write_effective(effective_path, &current);
     Ok(current)
 }
@@ -214,10 +265,38 @@ fn apply_helpers(cfg: &HashMap<String, ConfigValue>, scripts_dir: &Path) {
     let log_on = cfg
         .get("LOGGING_ENABLE")
         .and_then(|v| v.as_bool())
-        .unwrap_or(true);
+        .unwrap_or(false);
     if log_on {
         let _ = thrawld::logging::start(scripts_dir);
     } else {
         let _ = thrawld::logging::stop(scripts_dir);
+    }
+}
+
+fn apply_changed_subsystems(
+    old_cfg: &HashMap<String, ConfigValue>,
+    new_cfg: &HashMap<String, ConfigValue>,
+    scripts_dir: &Path,
+) {
+    let _ = thrawld::lmkd::apply(scripts_dir);
+
+    let uffd_on = new_cfg
+        .get("UFFD_GC_ENABLE")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if uffd_on {
+        let _ = thrawld::uffd::apply(scripts_dir);
+    } else {
+        let _ = thrawld::uffd::clear(scripts_dir);
+    }
+
+    let log_old = old_cfg.get("LOGGING_ENABLE").and_then(|v| v.as_bool()).unwrap_or(false);
+    let log_new = new_cfg.get("LOGGING_ENABLE").and_then(|v| v.as_bool()).unwrap_or(false);
+    if log_new && !log_old {
+        let _ = thrawld::logging::start(scripts_dir);
+    } else if !log_new && log_old {
+        let _ = thrawld::logging::stop(scripts_dir);
+    } else if log_new {
+        let _ = thrawld::logging::restart(scripts_dir);
     }
 }

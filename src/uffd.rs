@@ -1,6 +1,6 @@
+use crate::command::run_timeout;
 use std::path::Path;
 use std::time::Duration;
-use crate::command::run_timeout;
 
 pub fn apply(scripts_dir: &Path) -> std::io::Result<()> {
     let p = scripts_dir.join("uffd.sh").to_string_lossy().to_string();
@@ -15,5 +15,8 @@ pub fn clear(scripts_dir: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn signature_compiles() { let _ = apply; let _ = clear; }
+    fn signature_compiles() {
+        let _ = apply;
+        let _ = clear;
+    }
 }

@@ -1,91 +1,65 @@
 use std::io;
 
-pub fn sys_root() -> &'static str {
-    "/sys/block"
-}
-
-#[cfg(target_os = "linux")]
-pub fn list_devices() -> Vec<String> {
-    let root = std::path::Path::new(sys_root());
-    let mut devices = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(root) {
-        for entry in entries.flatten() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if name.starts_with("zram") {
-                    devices.push(name);
-                }
-            }
+fn read_from_any(paths: &[&str]) -> io::Result<String> {
+    for p in paths {
+        if let Ok(s) = std::fs::read_to_string(p) {
+            return Ok(s);
         }
     }
-    devices
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "no zram-control found",
+    ))
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn list_devices() -> Vec<String> {
-    Vec::new()
+pub fn hot_add() -> io::Result<u32> {
+    let content = read_from_any(&[
+        "/sys/class/zram-control/hot_add",
+        "/sys/devices/virtual/misc/zram-control/hot_add",
+    ])?;
+    let id: u32 = content
+        .trim()
+        .parse()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("bad zram id: {}", e)))?;
+    Ok(id)
 }
 
-#[cfg(target_os = "linux")]
-pub fn hot_add() -> io::Result<()> {
-    std::fs::write("/sys/class/zram-control/hot_add", b"1")?;
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn hot_add() -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Unsupported, "ZRAM not supported"))
-}
-
-#[cfg(target_os = "linux")]
 pub fn hot_remove(idx: u32) -> io::Result<()> {
-    std::fs::write("/sys/class/zram-control/hot_remove", idx.to_string())?;
-    Ok(())
+    let content = idx.to_string();
+    let paths = [
+        "/sys/class/zram-control/hot_remove",
+        "/sys/devices/virtual/misc/zram-control/hot_remove",
+    ];
+    for p in &paths {
+        if std::fs::write(p, &content).is_ok() {
+            return Ok(());
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "no zram-control found",
+    ))
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn hot_remove(_idx: u32) -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Unsupported, "ZRAM not supported"))
+fn zram_path(idx: u32) -> String {
+    format!("/sys/block/zram{}", idx)
 }
 
-#[cfg(target_os = "linux")]
 pub fn set_disksize(idx: u32, bytes: u64) -> io::Result<()> {
     let path = format!("{}/disksize", zram_path(idx));
-    std::fs::write(&path, bytes.to_string())?;
-    Ok(())
+    std::fs::write(&path, bytes.to_string())
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn set_disksize(_idx: u32, _bytes: u64) -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Unsupported, "ZRAM not supported"))
-}
-
-#[cfg(target_os = "linux")]
 pub fn set_comp_algo(idx: u32, algo: &str) -> io::Result<()> {
     let recomp_path = format!("{}/recomp_algorithm", zram_path(idx));
-    let content = std::fs::read_to_string(&recomp_path)?;
-    let first = content.split_whitespace().next().unwrap_or("");
-    if first != algo {
-        let comp_path = format!("{}/comp_algorithm", zram_path(idx));
-        std::fs::write(&comp_path, algo)?;
+    if let Ok(content) = std::fs::read_to_string(&recomp_path) {
+        let first = content.split_whitespace().next().unwrap_or("");
+        if first == algo {
+            return Ok(());
+        }
     }
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn set_comp_algo(_idx: u32, _algo: &str) -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Unsupported, "ZRAM not supported"))
-}
-
-#[cfg(target_os = "linux")]
-pub fn reset(idx: u32) -> io::Result<()> {
-    let path = format!("{}/reset", zram_path(idx));
-    std::fs::write(&path, b"1")?;
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn reset(_idx: u32) -> io::Result<()> {
-    Err(io::Error::new(io::ErrorKind::Unsupported, "ZRAM not supported"))
+    let comp_path = format!("{}/comp_algorithm", zram_path(idx));
+    std::fs::write(&comp_path, algo)
 }
 
 pub fn auto_size_bytes(total_ram_kb: u64) -> u64 {
@@ -98,11 +72,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn list_is_safe_on_host() {
-        let _ = list_devices();
-    }
-
-    #[test]
     fn auto_size_within_bounds() {
         let s = auto_size_bytes(2 * 1024 * 1024);
         assert!(s >= 512 * 1024 * 1024);
@@ -110,7 +79,14 @@ mod tests {
     }
 
     #[test]
-    fn sys_root_path() {
-        assert_eq!(sys_root(), "/sys/block");
+    fn auto_size_small_ram() {
+        let s = auto_size_bytes(512 * 1024);
+        assert_eq!(s, 512 * 1024 * 1024);
+    }
+
+    #[test]
+    fn auto_size_large_ram() {
+        let s = auto_size_bytes(16 * 1024 * 1024);
+        assert_eq!(s, 4 * 1024 * 1024 * 1024);
     }
 }

@@ -11,15 +11,29 @@ pub fn read_meminfo() -> std::io::Result<MemInfo> {
     let mut avail = 0u64;
     for line in s.lines() {
         if let Some(v) = line.strip_prefix("MemTotal:") {
-            total = v.split_whitespace().next().and_then(|n| n.parse().ok()).unwrap_or(0);
+            total = v
+                .split_whitespace()
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
         } else if let Some(v) = line.strip_prefix("MemAvailable:") {
-            avail = v.split_whitespace().next().and_then(|n| n.parse().ok()).unwrap_or(0);
+            avail = v
+                .split_whitespace()
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
         }
     }
     if total == 0 {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "MemTotal not found"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "MemTotal not found",
+        ));
     }
-    Ok(MemInfo { total_kb: total, available_kb: avail })
+    Ok(MemInfo {
+        total_kb: total,
+        available_kb: avail,
+    })
 }
 
 pub fn used_percent(info: &MemInfo) -> f64 {
@@ -53,14 +67,6 @@ pub fn decide(
     }
     let _ = (current, low, high);
     HysteresisOp::Hold
-}
-
-pub fn apply(op: HysteresisOp, low: i64, high: i64) -> i64 {
-    match op {
-        HysteresisOp::Raise => high,
-        HysteresisOp::Lower => low,
-        HysteresisOp::Hold => -1,
-    }
 }
 
 #[cfg(test)]

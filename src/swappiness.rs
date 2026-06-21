@@ -9,7 +9,9 @@ pub fn read_swappiness() -> std::io::Result<i64> {
 }
 
 pub fn write_swappiness(v: i64) -> std::io::Result<()> {
-    let mut f = std::fs::OpenOptions::new().write(true).open(SWAPPINESS_PATH)?;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .open(SWAPPINESS_PATH)?;
     writeln!(f, "{}", v)
 }
 
@@ -18,12 +20,18 @@ pub fn detect_max() -> i64 {
     let candidates = [200, 180, 150, 120, 100, 60, 10, 0];
     let mut max = 0;
     for &c in &candidates {
-        if write_swappiness(c).is_err() { continue; }
+        if write_swappiness(c).is_err() {
+            continue;
+        }
         if let Ok(got) = read_swappiness() {
-            if got == c && got > max { max = got; }
+            if got == c && got > max {
+                max = got;
+            }
         }
     }
-    if let Some(p) = prev { let _ = write_swappiness(p); }
+    if let Some(p) = prev {
+        let _ = write_swappiness(p);
+    }
     max
 }
 
@@ -46,7 +54,7 @@ mod tests {
     fn detect_max_handles_sandbox() {
         if std::path::Path::new(SWAPPINESS_PATH).exists() {
             let m = detect_max();
-            assert!(m >= 0 && m <= 200);
+            assert!((0..=200).contains(&m));
         }
     }
 

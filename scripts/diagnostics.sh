@@ -21,8 +21,17 @@ OUT="$RUNTIME_LOG_DIR/diagnostics.txt"
     echo "--- ZRAM ---"
     ls /sys/block/ 2>/dev/null | grep '^zram' || echo "(none)"
     echo
+    echo "--- ZRAM detail ---"
+    for z in /sys/block/zram*; do
+        [ -d "$z" ] || continue
+        echo "  $(basename $z): disksize=$(cat $z/disksize 2>/dev/null) algo=$(cat $z/comp_algorithm 2>/dev/null)"
+    done
+    echo
     echo "--- Swaps ---"
     cat /proc/swaps
+    echo
+    echo "--- Swap usage ---"
+    free -m 2>/dev/null || cat /proc/meminfo | grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree"
     echo
     echo "--- LMKD props ---"
     getprop | grep -E 'lmk\.' || true
@@ -33,6 +42,9 @@ OUT="$RUNTIME_LOG_DIR/diagnostics.txt"
     echo
     echo "--- Flags ---"
     ls "${MODDIR:-/data/adb/modules/thrawl}/data/flags" 2>/dev/null || true
+    echo
+    echo "--- VM controller ---"
+    cat "${MODDIR:-/data/adb/modules/thrawl}/data/flags/vm_controller" 2>/dev/null || echo "(unknown)"
     echo
 } > "$OUT" 2>&1
 echo "$OUT"

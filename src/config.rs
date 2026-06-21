@@ -11,9 +11,16 @@ pub enum ValueKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum AutoValue {
+    Auto,
+    Forced(bool),
+    Resolved(bool),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConfigValue {
     Bool(bool),
-    AutoResolved(bool),
+    Auto(AutoValue),
     Int(i64),
     String(String),
 }
@@ -33,9 +40,11 @@ impl ConfigValue {
         }
     }
 
-    pub fn as_auto(&self) -> Option<bool> {
-        match *self {
-            ConfigValue::AutoResolved(b) => Some(b),
+    pub fn as_resolved(&self) -> Option<bool> {
+        match self {
+            ConfigValue::Auto(AutoValue::Resolved(b)) => Some(*b),
+            ConfigValue::Auto(AutoValue::Forced(b)) => Some(*b),
+            ConfigValue::Bool(b) => Some(*b),
             _ => None,
         }
     }
@@ -55,45 +64,168 @@ pub struct ConfigKey {
     pub default: ConfigValue,
 }
 
-pub static KEYS: LazyLock<Vec<ConfigKey>> = LazyLock::new(|| vec![
-    ConfigKey { name: "PSI_AVAILABLE", kind: ValueKind::Auto, default: ConfigValue::AutoResolved(false) },
-    ConfigKey { name: "PSI_THRESHOLD", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(70) },
-    ConfigKey { name: "PSI_POLL_TIMEOUT_MS", kind: ValueKind::Int(100, 60000), default: ConfigValue::Int(5000) },
-    ConfigKey { name: "SWAPPINESS_LOW", kind: ValueKind::Int(0, 200), default: ConfigValue::Int(40) },
-    ConfigKey { name: "SWAPPINESS_HIGH", kind: ValueKind::Int(0, 200), default: ConfigValue::Int(120) },
-    ConfigKey { name: "LEGACY_PRESSURE_THRESHOLD", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(65) },
-    ConfigKey { name: "LEGACY_HYSTERESIS", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(10) },
-    ConfigKey { name: "LEGACY_POLL_INTERVAL_MS", kind: ValueKind::Int(100, 60000), default: ConfigValue::Int(5000) },
-    ConfigKey { name: "ZRAM_ENABLE", kind: ValueKind::Bool, default: ConfigValue::Bool(true) },
-    ConfigKey { name: "ZRAM_COUNT", kind: ValueKind::Int(0, 32), default: ConfigValue::Int(4) },
-    ConfigKey { name: "ZRAM_SIZE_MB", kind: ValueKind::Int(0, 65536), default: ConfigValue::Int(0) },
-    ConfigKey { name: "ZRAM_COMP_ALGO", kind: ValueKind::String, default: ConfigValue::String("zstd".to_string()) },
-    ConfigKey { name: "SWAP_ENABLE", kind: ValueKind::Bool, default: ConfigValue::Bool(true) },
-    ConfigKey { name: "SWAP_SIZE_MB", kind: ValueKind::Int(0, 65536), default: ConfigValue::Int(0) },
-    ConfigKey { name: "SWAP_PATH", kind: ValueKind::String, default: ConfigValue::String("/data/adb/thrawl/swap".to_string()) },
-    ConfigKey { name: "VM_POLL_INTERVAL_MS", kind: ValueKind::Int(100, 60000), default: ConfigValue::Int(5000) },
-    ConfigKey { name: "VM_SWAP_USAGE_LOW", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(40) },
-    ConfigKey { name: "VM_SWAP_USAGE_HIGH", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(80) },
-    ConfigKey { name: "VM_IDLE_TIMEOUT_S", kind: ValueKind::Int(0, 86400), default: ConfigValue::Int(300) },
-    ConfigKey { name: "LMKD_USE_PSI", kind: ValueKind::Auto, default: ConfigValue::AutoResolved(false) },
-    ConfigKey { name: "LMKD_USE_MINFREE", kind: ValueKind::Auto, default: ConfigValue::AutoResolved(false) },
-    ConfigKey { name: "UFFD_GC_ENABLE", kind: ValueKind::Bool, default: ConfigValue::Bool(false) },
-    ConfigKey { name: "LOGGING_ENABLE", kind: ValueKind::Bool, default: ConfigValue::Bool(true) },
-    ConfigKey { name: "LOG_LEVEL", kind: ValueKind::String, default: ConfigValue::String("info".to_string()) },
-    ConfigKey { name: "LOG_MAX_SIZE_KB", kind: ValueKind::Int(64, 1048576), default: ConfigValue::Int(1024) },
-    ConfigKey { name: "LOG_RETAIN_COUNT", kind: ValueKind::Int(0, 100), default: ConfigValue::Int(3) },
-    ConfigKey { name: "CONFIG_POLL_INTERVAL_MS", kind: ValueKind::Int(100, 60000), default: ConfigValue::Int(5000) },
-]);
-
-pub fn keys() -> &'static [ConfigKey] {
-    &KEYS
-}
+pub static KEYS: LazyLock<Vec<ConfigKey>> = LazyLock::new(|| {
+    vec![
+        ConfigKey {
+            name: "PSI_AVAILABLE",
+            kind: ValueKind::Auto,
+            default: ConfigValue::Auto(AutoValue::Auto),
+        },
+        ConfigKey {
+            name: "PSI_THRESHOLD",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(70),
+        },
+        ConfigKey {
+            name: "PSI_POLL_TIMEOUT_MS",
+            kind: ValueKind::Int(100, 60000),
+            default: ConfigValue::Int(5000),
+        },
+        ConfigKey {
+            name: "SWAPPINESS_LOW",
+            kind: ValueKind::Int(0, 200),
+            default: ConfigValue::Int(40),
+        },
+        ConfigKey {
+            name: "SWAPPINESS_HIGH",
+            kind: ValueKind::Int(0, 200),
+            default: ConfigValue::Int(100),
+        },
+        ConfigKey {
+            name: "LEGACY_PRESSURE_THRESHOLD",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(65),
+        },
+        ConfigKey {
+            name: "LEGACY_HYSTERESIS",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(10),
+        },
+        ConfigKey {
+            name: "LEGACY_POLL_INTERVAL_MS",
+            kind: ValueKind::Int(100, 60000),
+            default: ConfigValue::Int(5000),
+        },
+        ConfigKey {
+            name: "ZRAM_ENABLE",
+            kind: ValueKind::Bool,
+            default: ConfigValue::Bool(true),
+        },
+        ConfigKey {
+            name: "ZRAM_COUNT",
+            kind: ValueKind::Int(0, 32),
+            default: ConfigValue::Int(1),
+        },
+        ConfigKey {
+            name: "ZRAM_SIZE_MB",
+            kind: ValueKind::Int(0, 65536),
+            default: ConfigValue::Int(0),
+        },
+        ConfigKey {
+            name: "ZRAM_COMP_ALGO",
+            kind: ValueKind::String,
+            default: ConfigValue::String("zstd".to_string()),
+        },
+        ConfigKey {
+            name: "SWAP_ENABLE",
+            kind: ValueKind::Bool,
+            default: ConfigValue::Bool(false),
+        },
+        ConfigKey {
+            name: "SWAP_SIZE_MB",
+            kind: ValueKind::Int(0, 65536),
+            default: ConfigValue::Int(0),
+        },
+        ConfigKey {
+            name: "SWAP_PATH",
+            kind: ValueKind::String,
+            default: ConfigValue::String("/data/adb/thrawl/swap".to_string()),
+        },
+        ConfigKey {
+            name: "VM_POLL_INTERVAL_MS",
+            kind: ValueKind::Int(100, 60000),
+            default: ConfigValue::Int(5000),
+        },
+        ConfigKey {
+            name: "VM_SWAP_USAGE_LOW",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(40),
+        },
+        ConfigKey {
+            name: "VM_SWAP_USAGE_HIGH",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(80),
+        },
+        ConfigKey {
+            name: "VM_IDLE_TIMEOUT_S",
+            kind: ValueKind::Int(0, 86400),
+            default: ConfigValue::Int(300),
+        },
+        ConfigKey {
+            name: "LMKD_USE_PSI",
+            kind: ValueKind::Auto,
+            default: ConfigValue::Auto(AutoValue::Auto),
+        },
+        ConfigKey {
+            name: "LMKD_USE_MINFREE",
+            kind: ValueKind::Auto,
+            default: ConfigValue::Auto(AutoValue::Auto),
+        },
+        ConfigKey {
+            name: "LMKD_KILL_HEAVIEST_TASK",
+            kind: ValueKind::Bool,
+            default: ConfigValue::Bool(false),
+        },
+        ConfigKey {
+            name: "LMKD_THRASHING_LIMIT",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(30),
+        },
+        ConfigKey {
+            name: "LMKD_THRASHING_LIMIT_DECAY",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(80),
+        },
+        ConfigKey {
+            name: "UFFD_GC_ENABLE",
+            kind: ValueKind::Bool,
+            default: ConfigValue::Bool(false),
+        },
+        ConfigKey {
+            name: "LOGGING_ENABLE",
+            kind: ValueKind::Bool,
+            default: ConfigValue::Bool(false),
+        },
+        ConfigKey {
+            name: "LOG_LEVEL",
+            kind: ValueKind::String,
+            default: ConfigValue::String("info".to_string()),
+        },
+        ConfigKey {
+            name: "LOG_MAX_SIZE_KB",
+            kind: ValueKind::Int(64, 1048576),
+            default: ConfigValue::Int(1024),
+        },
+        ConfigKey {
+            name: "LOG_RETAIN_COUNT",
+            kind: ValueKind::Int(0, 100),
+            default: ConfigValue::Int(3),
+        },
+        ConfigKey {
+            name: "CONFIG_POLL_INTERVAL_MS",
+            kind: ValueKind::Int(100, 60000),
+            default: ConfigValue::Int(5000),
+        },
+    ]
+});
 
 pub fn defaults() -> HashMap<String, ConfigValue> {
-    KEYS.iter().map(|k| (k.name.to_string(), k.default.clone())).collect()
+    KEYS.iter()
+        .map(|k| (k.name.to_string(), k.default.clone()))
+        .collect()
 }
 
-fn parse_line<'a>(line: &'a str) -> Option<(&'a str, &'a str)> {
+fn parse_line(line: &str) -> Option<(&str, &str)> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
         return None;
@@ -106,7 +238,9 @@ fn parse_line<'a>(line: &'a str) -> Option<(&'a str, &'a str)> {
     }
     let val = if let Some(hash_pos) = raw_val.find('#') {
         let trimmed = raw_val[..hash_pos].trim();
-        if trimmed.is_empty() { return None; }
+        if trimmed.is_empty() {
+            return None;
+        }
         trimmed
     } else {
         raw_val
@@ -116,26 +250,36 @@ fn parse_line<'a>(line: &'a str) -> Option<(&'a str, &'a str)> {
 
 fn parse_value(key: &ConfigKey, value_str: &str) -> ConfigValue {
     match key.kind {
-        ValueKind::Bool => match value_str.to_lowercase().as_str() {
+        ValueKind::Bool => match value_str {
             "1" => ConfigValue::Bool(true),
             "0" => ConfigValue::Bool(false),
             _ => {
-                eprintln!("WARN: invalid bool value '{}' for '{}', using default", value_str, key.name);
+                eprintln!(
+                    "WARN: invalid bool '{}' for '{}', using default",
+                    value_str, key.name
+                );
                 key.default.clone()
             }
         },
-        ValueKind::Auto => match value_str.to_lowercase().as_str() {
-            "auto" | "1" => ConfigValue::AutoResolved(true),
-            "0" => ConfigValue::AutoResolved(false),
+        ValueKind::Auto => match value_str {
+            "auto" => ConfigValue::Auto(AutoValue::Auto),
+            "1" => ConfigValue::Auto(AutoValue::Forced(true)),
+            "0" => ConfigValue::Auto(AutoValue::Forced(false)),
             _ => {
-                eprintln!("WARN: invalid auto value '{}' for '{}', using default", value_str, key.name);
+                eprintln!(
+                    "WARN: invalid auto '{}' for '{}', using default",
+                    value_str, key.name
+                );
                 key.default.clone()
             }
         },
         ValueKind::Int(min, max) => match value_str.parse::<i64>() {
             Ok(n) => ConfigValue::Int(n.clamp(min, max)),
             Err(_) => {
-                eprintln!("WARN: invalid int value '{}' for '{}', using default", value_str, key.name);
+                eprintln!(
+                    "WARN: invalid int '{}' for '{}', using default",
+                    value_str, key.name
+                );
                 key.default.clone()
             }
         },
@@ -146,7 +290,12 @@ fn parse_value(key: &ConfigKey, value_str: &str) -> ConfigValue {
 fn format_config_value(val: &ConfigValue) -> String {
     match val {
         ConfigValue::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
-        ConfigValue::AutoResolved(b) => (if *b { "1" } else { "0" }).to_string(),
+        ConfigValue::Auto(av) => match av {
+            AutoValue::Auto => "auto".to_string(),
+            AutoValue::Forced(b) | AutoValue::Resolved(b) => {
+                (if *b { "1" } else { "0" }).to_string()
+            }
+        },
         ConfigValue::Int(i) => i.to_string(),
         ConfigValue::String(s) => s.clone(),
     }
@@ -180,7 +329,6 @@ pub fn write_effective(path: &Path, map: &HashMap<String, ConfigValue>) -> std::
         }
     }
     std::fs::write(&tmp_path, &content)?;
-    // Windows: rename fails if destination exists, so remove it first
     let _ = std::fs::remove_file(path);
     std::fs::rename(&tmp_path, path)?;
     Ok(())
@@ -222,7 +370,30 @@ mod tests {
     fn auto_invalid_falls_back_to_default() {
         let s = "PSI_AVAILABLE=maybe\n";
         let m = parse(s);
-        assert_eq!(m.get("PSI_AVAILABLE"), Some(&ConfigValue::AutoResolved(false)));
+        assert_eq!(
+            m.get("PSI_AVAILABLE"),
+            Some(&ConfigValue::Auto(AutoValue::Auto))
+        );
+    }
+
+    #[test]
+    fn auto_forced_true() {
+        let s = "PSI_AVAILABLE=1\n";
+        let m = parse(s);
+        assert_eq!(
+            m.get("PSI_AVAILABLE"),
+            Some(&ConfigValue::Auto(AutoValue::Forced(true)))
+        );
+    }
+
+    #[test]
+    fn auto_forced_false() {
+        let s = "PSI_AVAILABLE=0\n";
+        let m = parse(s);
+        assert_eq!(
+            m.get("PSI_AVAILABLE"),
+            Some(&ConfigValue::Auto(AutoValue::Forced(false)))
+        );
     }
 
     #[test]
@@ -250,5 +421,34 @@ mod tests {
         assert!(target.exists());
         let body = std::fs::read_to_string(&target).unwrap();
         assert!(body.contains("PSI_THRESHOLD=33"));
+    }
+
+    #[test]
+    fn new_lmkd_keys_have_defaults() {
+        let m = defaults();
+        assert_eq!(
+            m.get("LMKD_KILL_HEAVIEST_TASK").and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            m.get("LMKD_THRASHING_LIMIT").and_then(|v| v.as_int()),
+            Some(30)
+        );
+        assert_eq!(
+            m.get("LMKD_THRASHING_LIMIT_DECAY").and_then(|v| v.as_int()),
+            Some(80)
+        );
+    }
+
+    #[test]
+    fn defaults_match_spec() {
+        let m = defaults();
+        assert_eq!(m.get("SWAPPINESS_HIGH").and_then(|v| v.as_int()), Some(100));
+        assert_eq!(m.get("ZRAM_COUNT").and_then(|v| v.as_int()), Some(1));
+        assert_eq!(m.get("SWAP_ENABLE").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(
+            m.get("LOGGING_ENABLE").and_then(|v| v.as_bool()),
+            Some(false)
+        );
     }
 }

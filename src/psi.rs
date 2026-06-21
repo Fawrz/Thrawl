@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
 
@@ -54,11 +54,6 @@ pub fn wait_event(_fd: i32, _timeout: Duration) -> std::io::Result<bool> {
 
 pub fn open_psi() -> std::io::Result<File> {
     File::open(PSI_MEMORY)
-}
-
-pub fn rewind(file: &mut File) -> std::io::Result<()> {
-    file.seek(SeekFrom::Start(0))?;
-    Ok(())
 }
 
 #[cfg(test)]

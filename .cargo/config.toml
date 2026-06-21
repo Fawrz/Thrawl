@@ -1,2 +1,6 @@
 # Android NDK linkers are set dynamically by cargo-ndk at build time.
 # No static linker configuration needed here.
+
+[env]
+# Windows SDK libraries path for LLD linker (no VS Build Tools installed)
+LIB = "C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64"

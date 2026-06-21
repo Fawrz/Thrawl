@@ -21,8 +21,14 @@ extern "C" fn handle_sigterm(_: libc::c_int) {
 #[cfg(unix)]
 fn install_signals() {
     unsafe {
-        libc::signal(libc::SIGHUP, handle_sighup as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGTERM, handle_sigterm as *const () as libc::sighandler_t);
+        libc::signal(
+            libc::SIGHUP,
+            handle_sighup as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGTERM,
+            handle_sigterm as *const () as libc::sighandler_t,
+        );
         libc::signal(libc::SIGPIPE, libc::SIG_IGN);
     }
 }
@@ -38,6 +44,7 @@ fn main() {
     }
     let moddir = PathBuf::from(&args[1]);
     install_signals();
+    let _ = flags::protect_from_oom();
     if let Err(e) = flags::check_and_write_pid(&moddir) {
         eprintln!("[thrawl] pid lock: {}", e);
         std::process::exit(0);
