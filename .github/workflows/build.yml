@@ -26,6 +26,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -39,6 +41,12 @@ jobs:
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy lints
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Run unit tests
         run: cargo test --manifest-path Cargo.toml
@@ -78,6 +86,16 @@ jobs:
         with:
           name: SHA256SUMS-${{ github.run_number }}
           path: build-out/SHA256SUMS
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload source archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-${{ github.run_number }}
+          path: |
+            build-out/*-source.tar.gz
+            build-out/*-source.zip
           retention-days: 30
           if-no-files-found: error
 
