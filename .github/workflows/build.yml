@@ -86,24 +86,6 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Upload SHA256SUMS
-        uses: actions/upload-artifact@v4
-        with:
-          name: SHA256SUMS-${{ github.run_number }}
-          path: build-out/SHA256SUMS
-          retention-days: 30
-          if-no-files-found: error
-
-      - name: Upload source archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-${{ github.run_number }}
-          path: |
-            build-out/*-source.tar.gz
-            build-out/*-source.zip
-          retention-days: 30
-          if-no-files-found: error
-
       - name: Build summary
         if: always()
         run: |
