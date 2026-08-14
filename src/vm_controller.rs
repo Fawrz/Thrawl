@@ -177,6 +177,11 @@ impl VmController {
             .unwrap_or("/data/adb/thrawl/swap");
         let path = std::path::PathBuf::from(format!("{}/swapfile0", path_str));
 
+        let active = swap::is_swap_active(&path)?;
+        if swap_activation_should_skip(active) {
+            return Ok(());
+        }
+
         swap::create_swap_file(&path, size_mb)?;
         swap::mkswap(&path)?;
         swap::swapon(&path)?;
@@ -284,6 +289,12 @@ pub fn should_activate(swap_used_pct: f64, mem_pressure_pct: f64, high: f64) -> 
     swap_used_pct >= high || mem_pressure_pct >= high
 }
 
+/// True when `activate_swap` must bail out instead of creating/formatting/swapping on,
+/// i.e. the target path is already an active kernel swap.
+fn swap_activation_should_skip(active: bool) -> bool {
+    active
+}
+
 pub fn should_deactivate(swap_used_pct: f64, mem_pressure_pct: f64, low: f64) -> bool {
     swap_used_pct <= low && mem_pressure_pct <= low
 }
@@ -364,6 +375,12 @@ mod tests {
         assert!(vm.owned_zram.is_empty());
         assert!(vm.swap_path.is_none());
         assert!(!vm.swap_active);
+    }
+
+    #[test]
+    fn swap_activation_skips_when_kernel_active() {
+        assert!(swap_activation_should_skip(true));
+        assert!(!swap_activation_should_skip(false));
     }
 
     #[test]

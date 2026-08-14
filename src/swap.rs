@@ -6,6 +6,23 @@ use std::time::Duration;
 use crate::command::run_timeout;
 
 pub fn create_swap_file(path: &Path, size_mb: u32) -> io::Result<()> {
+    let active = is_swap_active(path)?;
+    if !swap_file_safe_to_overwrite(active) {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "refusing to truncate an already-active swap file",
+        ));
+    }
+    create_swap_file_unchecked(path, size_mb)
+}
+
+/// True only when it is safe to (re)create/truncate `path` as a fresh swap file.
+/// An already kernel-active swap must never be truncated.
+pub(crate) fn swap_file_safe_to_overwrite(active: bool) -> bool {
+    !active
+}
+
+fn create_swap_file_unchecked(path: &Path, size_mb: u32) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -241,6 +258,24 @@ Filename                                Type            Size            Used    
         let idxs = list_owned_zram(&tmp).unwrap();
         assert!(idxs.is_empty());
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn create_swap_file_unchecked_creates_expected_size() {
+        let tmp = std::env::temp_dir().join("thrawl_create_swap_test");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let _ = std::fs::create_dir_all(&tmp);
+        let p = tmp.join("swapfile0");
+        create_swap_file_unchecked(&p, 1).unwrap();
+        let meta = std::fs::metadata(&p).unwrap();
+        assert_eq!(meta.len(), 1024 * 1024);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn create_swap_safe_to_overwrite_decision() {
+        assert!(swap_file_safe_to_overwrite(false));
+        assert!(!swap_file_safe_to_overwrite(true));
     }
 
     #[test]
