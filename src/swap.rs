@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::command::run_timeout;
@@ -73,6 +73,57 @@ pub fn record_zram(flags_dir: &Path, idx: u32) -> io::Result<()> {
 pub fn unrecord_zram(flags_dir: &Path, idx: u32) -> io::Result<()> {
     let dir = flags_dir.join("swap.d");
     fs::remove_file(dir.join(format!("zram{}.zram", idx)))
+}
+
+pub fn list_owned_zram(flags_dir: &Path) -> io::Result<Vec<u32>> {
+    let dir = flags_dir.join("swap.d");
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for entry in fs::read_dir(&dir)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if let Some(rest) = name.strip_suffix(".zram") {
+            if let Some(idx_str) = rest.strip_prefix("zram") {
+                if let Ok(idx) = idx_str.parse::<u32>() {
+                    out.push(idx);
+                }
+            }
+        }
+    }
+    out.sort_unstable();
+    Ok(out)
+}
+
+pub fn list_owned_swap(flags_dir: &Path) -> io::Result<Vec<PathBuf>> {
+    let dir = flags_dir.join("swap.d");
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for entry in fs::read_dir(&dir)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.ends_with(".swap") {
+            let content = fs::read_to_string(entry.path())?.trim().to_string();
+            out.push(PathBuf::from(content));
+        }
+    }
+    Ok(out)
+}
+
+pub fn read_active_swap_paths() -> io::Result<Vec<String>> {
+    let content = std::fs::read_to_string("/proc/swaps")?;
+    let mut out = Vec::new();
+    for line in content.lines().skip(1) {
+        if let Some(p) = line.split_whitespace().next() {
+            if !p.is_empty() {
+                out.push(p.to_string());
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn has_swap_entry(content: &str, path: &Path) -> bool {
@@ -157,6 +208,39 @@ Filename                                Type            Size            Used    
         ));
         assert!(!has_swap_entry(content, &PathBuf::from("/dev/block/zram3")));
         assert!(!has_swap_entry("", &PathBuf::from("/dev/block/zram0")));
+    }
+
+    #[test]
+    fn list_owned_zram_parses_flags() {
+        let tmp = std::env::temp_dir().join("thrawl_list_zram_test");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let _ = std::fs::create_dir_all(&tmp);
+        record_zram(&tmp, 0).unwrap();
+        record_zram(&tmp, 3).unwrap();
+        let idxs = list_owned_zram(&tmp).unwrap();
+        assert_eq!(idxs, vec![0, 3]);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn list_owned_swap_parses_flags() {
+        let tmp = std::env::temp_dir().join("thrawl_list_swap_test");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let _ = std::fs::create_dir_all(&tmp);
+        let p = PathBuf::from("/data/adb/thrawl/swap/swapfile0");
+        record(&tmp, &p).unwrap();
+        let paths = list_owned_swap(&tmp).unwrap();
+        assert_eq!(paths, vec![p]);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn list_owned_zram_missing_dir_is_empty() {
+        let tmp = std::env::temp_dir().join("thrawl_list_zram_missing");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let idxs = list_owned_zram(&tmp).unwrap();
+        assert!(idxs.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

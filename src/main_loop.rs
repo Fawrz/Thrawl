@@ -63,6 +63,7 @@ pub fn run_daemon(moddir: &Path, cfg_path: &Path, effective_path: &Path) -> std:
     let mut last_cfg_size: Option<u64> = std::fs::metadata(cfg_path).ok().map(|m| m.len());
 
     let mut vm = VmController::new();
+    vm.restore_ownership(&flags_dir);
 
     loop {
         if daemon_shutdown_flag() {

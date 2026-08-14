@@ -238,6 +238,46 @@ impl VmController {
             let _ = self.deactivate_swap(flags_dir);
         }
     }
+
+    pub fn restore_ownership(&mut self, flags_dir: &Path) {
+        let flag_zram = swap::list_owned_zram(flags_dir).unwrap_or_default();
+        let flag_swap = swap::list_owned_swap(flags_dir).unwrap_or_default();
+        let active = swap::read_active_swap_paths().unwrap_or_default();
+        adopt_owned(
+            &mut self.owned_zram,
+            &mut self.swap_path,
+            &mut self.swap_active,
+            &flag_zram,
+            &flag_swap,
+            &active,
+        );
+    }
+}
+
+fn adopt_owned(
+    owned_zram: &mut Vec<u32>,
+    swap_path: &mut Option<std::path::PathBuf>,
+    swap_active: &mut bool,
+    flag_zram: &[u32],
+    flag_swap: &[std::path::PathBuf],
+    active_swaps: &[String],
+) {
+    for &idx in flag_zram {
+        let dev = format!("/dev/block/zram{}", idx);
+        if active_swaps.iter().any(|p| p.as_str() == dev.as_str()) && !owned_zram.contains(&idx) {
+            owned_zram.push(idx);
+        }
+    }
+    for path in flag_swap {
+        if active_swaps
+            .iter()
+            .any(|p| p.as_str() == path.to_string_lossy().as_ref())
+        {
+            *swap_path = Some(path.clone());
+            *swap_active = true;
+            break;
+        }
+    }
 }
 
 pub fn should_activate(swap_used_pct: f64, mem_pressure_pct: f64, high: f64) -> bool {
@@ -280,5 +320,66 @@ mod tests {
     fn vm_state_initial_is_idle() {
         let vm = VmController::new();
         assert_eq!(vm.state, VmState::Idle);
+    }
+
+    #[test]
+    fn restore_adopts_flagged_active_resource() {
+        let mut vm = VmController::new();
+        let flag_zram = vec![0u32];
+        let flag_swap = vec![std::path::PathBuf::from("/data/adb/thrawl/swap/swapfile0")];
+        let active = vec![
+            "/dev/block/zram0".to_string(),
+            "/data/adb/thrawl/swap/swapfile0".to_string(),
+        ];
+        adopt_owned(
+            &mut vm.owned_zram,
+            &mut vm.swap_path,
+            &mut vm.swap_active,
+            &flag_zram,
+            &flag_swap,
+            &active,
+        );
+        assert_eq!(vm.owned_zram, vec![0]);
+        assert_eq!(
+            vm.swap_path,
+            Some(std::path::PathBuf::from("/data/adb/thrawl/swap/swapfile0"))
+        );
+        assert!(vm.swap_active);
+    }
+
+    #[test]
+    fn restore_skips_flagged_inactive_resource() {
+        let mut vm = VmController::new();
+        let flag_zram = vec![3u32];
+        let flag_swap = vec![std::path::PathBuf::from("/data/adb/thrawl/swap/swapfile0")];
+        let active: Vec<String> = Vec::new();
+        adopt_owned(
+            &mut vm.owned_zram,
+            &mut vm.swap_path,
+            &mut vm.swap_active,
+            &flag_zram,
+            &flag_swap,
+            &active,
+        );
+        assert!(vm.owned_zram.is_empty());
+        assert!(vm.swap_path.is_none());
+        assert!(!vm.swap_active);
+    }
+
+    #[test]
+    fn restore_no_flags_keeps_external_resource_unadopted() {
+        let mut vm = VmController::new();
+        let active = vec!["/dev/block/zram9".to_string()];
+        adopt_owned(
+            &mut vm.owned_zram,
+            &mut vm.swap_path,
+            &mut vm.swap_active,
+            &[],
+            &[],
+            &active,
+        );
+        assert!(vm.owned_zram.is_empty());
+        assert!(vm.swap_path.is_none());
+        assert!(!vm.swap_active);
     }
 }
