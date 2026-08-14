@@ -75,6 +75,18 @@ pub fn unrecord_zram(flags_dir: &Path, idx: u32) -> io::Result<()> {
     fs::remove_file(dir.join(format!("zram{}.zram", idx)))
 }
 
+fn has_swap_entry(content: &str, path: &Path) -> bool {
+    let target = path.to_string_lossy();
+    content
+        .lines()
+        .any(|line| line.split_whitespace().next() == Some(target.as_ref()))
+}
+
+pub fn is_swap_active(path: &Path) -> io::Result<bool> {
+    let content = std::fs::read_to_string("/proc/swaps")?;
+    Ok(has_swap_entry(&content, path))
+}
+
 pub fn read_swap_usage_pct() -> Option<f64> {
     let content = std::fs::read_to_string("/proc/swaps").ok()?;
     let mut total_used: u64 = 0;
@@ -129,6 +141,22 @@ mod tests {
         unrecord(&tmp, &p).unwrap();
         let paths2 = list(&tmp).unwrap();
         assert!(paths2.is_empty());
+    }
+
+    #[test]
+    fn detects_active_swap_entry() {
+        let content = "\
+Filename                                Type            Size            Used            Priority
+/dev/block/zram0                        partition       4194304         1024            -2
+/data/adb/thrawl/swap/swapfile0         file            1048576         0               -2
+";
+        assert!(has_swap_entry(content, &PathBuf::from("/dev/block/zram0")));
+        assert!(has_swap_entry(
+            content,
+            &PathBuf::from("/data/adb/thrawl/swap/swapfile0")
+        ));
+        assert!(!has_swap_entry(content, &PathBuf::from("/dev/block/zram3")));
+        assert!(!has_swap_entry("", &PathBuf::from("/dev/block/zram0")));
     }
 
     #[test]

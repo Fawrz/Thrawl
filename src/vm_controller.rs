@@ -108,6 +108,7 @@ impl VmController {
         flags_dir: &Path,
     ) -> std::io::Result<()> {
         let idx = zram::hot_add()?;
+        let dev_path = std::path::PathBuf::from(format!("/dev/block/zram{}", idx));
         let algo = cfg
             .get("ZRAM_COMP_ALGO")
             .and_then(|v| v.as_str())
@@ -125,9 +126,27 @@ impl VmController {
             zram::auto_size_bytes(total_kb)
         };
 
-        zram::set_disksize(idx, bytes)?;
-        zram::set_comp_algo(idx, algo)?;
-        swap::record_zram(flags_dir, idx)?;
+        let result = zram::set_disksize(idx, bytes)
+            .and_then(|_| zram::set_comp_algo(idx, algo))
+            .and_then(|_| swap::mkswap(&dev_path))
+            .and_then(|_| swap::swapon(&dev_path))
+            .and_then(|_| {
+                if swap::is_swap_active(&dev_path)? {
+                    Ok(())
+                } else {
+                    Err(std::io::Error::other(format!(
+                        "zram{} not listed in /proc/swaps",
+                        idx
+                    )))
+                }
+            })
+            .and_then(|_| swap::record_zram(flags_dir, idx));
+
+        if let Err(e) = result {
+            let _ = swap::swapoff(&dev_path);
+            let _ = zram::hot_remove(idx);
+            return Err(e);
+        }
 
         self.owned_zram.push(idx);
         Ok(())
